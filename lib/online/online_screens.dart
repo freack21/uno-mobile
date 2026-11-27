@@ -292,7 +292,8 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
         MaterialPageRoute(builder: (_) => const OnlineMatchScreen()),
       ).then((_) {
         _inMatch = false;
-        if (mounted) setState(() {});
+        // A next match may have started while that screen was closing.
+        if (mounted) _onSession();
       });
     }
     setState(() {});
@@ -413,6 +414,24 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
           children: [
             if (finished) ...[
               _FinalScore(members: members),
+              const SizedBox(height: 14),
+            ],
+            if (room['interrupted'] case final String mode) ...[
+              _Card(
+                child: Row(
+                  children: [
+                    const Icon(Icons.restart_alt_rounded),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: Text(
+                        'The game server restarted, so the $mode match was '
+                        'stopped and not scored. Start it again when ready.',
+                        style: font(15, weight: 600),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
               const SizedBox(height: 14),
             ],
             _InviteCard(room: room, onShare: _share),
@@ -1112,7 +1131,9 @@ class _OnlineMatchScreenState extends State<OnlineMatchScreen> {
       _exact?.apply(m);
       _hold?.apply(m);
     }
-    if (_session.room == null) {
+    final room = _session.room;
+    // Left the room, or the match is gone (the server restarted mid-match).
+    if (room == null || room['matchId'] != _matchId) {
       Navigator.of(context).pop();
       return;
     }
