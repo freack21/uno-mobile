@@ -25,6 +25,23 @@
   <link rel="manifest" href="manifest.json">
 
   <title>Last Card</title>
+  <script>
+    // Light look picked (or the device is light): paint the page light before
+    // the app loads, so it does not flash dark. Keys match ThemeSwitch.
+    (function () {
+      try {
+        var c = localStorage.getItem('lastcard.theme') || 'system';
+        var dark = c === 'dark' ||
+          (c === 'system' && matchMedia('(prefers-color-scheme: dark)').matches);
+        if (dark) return;
+        document.documentElement.className = 'light';
+        document.querySelector('meta[name="theme-color"]').content = '#F3EFE6';
+        document.querySelector('meta[name="color-scheme"]').content = 'light';
+        document.querySelector('meta[name="apple-mobile-web-app-status-bar-style"]')
+          .content = 'default';
+      } catch (e) {}
+    })();
+  </script>
   <style>
     html, body {
       margin: 0;
@@ -60,6 +77,8 @@
       background: #E5392C;
       animation: load 1.1s ease-in-out infinite;
     }
+    html.light, html.light body { background: #F3EFE6; }
+    html.light #splash .bar { background: #E9E3D7; }
     @keyframes load {
       from { transform: translateX(-100%); }
       to { transform: translateX(250%); }

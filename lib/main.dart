@@ -4,6 +4,7 @@ import 'package:material_ui/material_ui.dart';
 import 'ui/app_update.dart';
 import 'ui/home_screen.dart';
 import 'ui/theme.dart';
+import 'ui/theme_switch.dart';
 import 'ui/update_toast.dart';
 
 void main() {
@@ -19,10 +20,56 @@ void main() {
   );
 }
 
-class LastCardApp extends StatelessWidget {
+class LastCardApp extends StatefulWidget {
   const LastCardApp({super.key, this.joinCode});
 
   final String? joinCode;
+
+  @override
+  State<LastCardApp> createState() => _LastCardAppState();
+}
+
+class _LastCardAppState extends State<LastCardApp> with WidgetsBindingObserver {
+  final _theme = ThemeSwitch.instance;
+  late bool _dark = _resolve();
+
+  bool _resolve() => _theme.isDark(
+    WidgetsBinding.instance.platformDispatcher.platformBrightness,
+  );
+
+  @override
+  void initState() {
+    super.initState();
+    ThemeSwitch.apply(_dark);
+    WidgetsBinding.instance.addObserver(this);
+    _theme.addListener(_update);
+  }
+
+  @override
+  void dispose() {
+    _theme.removeListener(_update);
+    WidgetsBinding.instance.removeObserver(this);
+    super.dispose();
+  }
+
+  @override
+  void didChangePlatformBrightness() => _update();
+
+  void _update() {
+    final dark = _resolve();
+    if (dark == _dark || !mounted) return;
+    _dark = dark;
+    ThemeSwitch.apply(dark);
+    setState(() {});
+    // Colors are read straight from Palette, so every screen (games in
+    // progress included) is rebuilt in place, keeping its state.
+    void rebuild(Element e) {
+      e.markNeedsBuild();
+      e.visitChildren(rebuild);
+    }
+
+    (context as Element).visitChildren(rebuild);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -50,7 +97,7 @@ class LastCardApp extends StatelessWidget {
           ),
         ),
       ),
-      home: HomeScreen(joinCode: joinCode),
+      home: HomeScreen(joinCode: widget.joinCode),
     );
   }
 }

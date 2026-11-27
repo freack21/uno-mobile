@@ -117,7 +117,7 @@ class _OnlineHomeScreenState extends State<OnlineHomeScreen> {
             _Card(
               child: Row(
                 children: [
-                  const Icon(Icons.history_rounded, color: Palette.muted),
+                  Icon(Icons.history_rounded, color: Palette.muted),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
@@ -200,7 +200,7 @@ class _OnlineHomeScreenState extends State<OnlineHomeScreen> {
             Text(
               _error!,
               textAlign: TextAlign.center,
-              style: font(15, weight: 600, color: const Color(0xFFFFB4A8)),
+              style: font(15, weight: 600, color: Palette.warn),
             ),
           ],
         ],
@@ -953,7 +953,7 @@ class _Scoreboard extends StatelessWidget {
                   ],
                 ),
               ),
-            const Divider(height: 24, color: Palette.line),
+            Divider(height: 24, color: Palette.line),
             for (final (i, h) in history.reversed.indexed)
               _MatchRow(number: history.length - i, record: h),
           ],
@@ -1027,8 +1027,11 @@ class _FinalScore extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.all(18),
       decoration: BoxDecoration(
-        gradient: const LinearGradient(
-          colors: [Color(0xFF3A2A10), Palette.surface],
+        gradient: LinearGradient(
+          colors: [
+            Palette.dark ? const Color(0xFF3A2A10) : const Color(0xFFFFF0CC),
+            Palette.surface,
+          ],
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
         ),

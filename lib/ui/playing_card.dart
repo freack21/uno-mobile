@@ -59,7 +59,13 @@ class PlayingCard extends StatelessWidget {
               _Back(width: width)
             else
               _Face(face: f, width: width, compact: compact, wilds: wildColors),
-            if (dimmed) ColoredBox(color: Colors.black.withValues(alpha: 0.42)),
+            // Unplayable: darkened on the dark table, faded on the light one.
+            if (dimmed)
+              ColoredBox(
+                color: Palette.dark
+                    ? Colors.black.withValues(alpha: 0.42)
+                    : Colors.white.withValues(alpha: 0.55),
+              ),
           ],
         ),
       ),

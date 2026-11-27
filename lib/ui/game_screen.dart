@@ -501,7 +501,7 @@ class _GameScreenState extends State<GameScreen> {
                     colors: [
                       Color.alphaBlend(
                         (color ?? accent).withValues(alpha: 0.26),
-                        const Color(0xFF1A1D23),
+                        Palette.felt,
                       ),
                       Palette.ink,
                     ],
@@ -893,7 +893,7 @@ class _ThinkingBubbleState extends State<_ThinkingBubble>
                       width: 5,
                       height: 5,
                       decoration: const BoxDecoration(
-                        color: Palette.ink,
+                        color: Palette.cardInk,
                         shape: BoxShape.circle,
                       ),
                     ),
@@ -927,7 +927,11 @@ class _CountBadge extends StatelessWidget {
       child: Text(
         '$count',
         textAlign: TextAlign.center,
-        style: font(12, weight: 700, color: hot ? Colors.white : Palette.ink),
+        style: font(
+          12,
+          weight: 700,
+          color: hot ? Colors.white : Palette.cardInk,
+        ),
       ),
     );
   }
@@ -1381,7 +1385,7 @@ class _TableBannerViewState extends State<TableBannerView> {
                       style: font(
                         30,
                         weight: 700,
-                        color: b.color == null ? Palette.ink : Colors.white,
+                        color: b.color == null ? Palette.cardInk : Colors.white,
                         height: 1.05,
                       ),
                     ),
@@ -1395,7 +1399,7 @@ class _TableBannerViewState extends State<TableBannerView> {
                             13,
                             weight: 550,
                             color: b.color == null
-                                ? Palette.ink.withValues(alpha: 0.7)
+                                ? Palette.cardInk.withValues(alpha: 0.7)
                                 : Colors.white.withValues(alpha: 0.9),
                           ),
                         ),
@@ -1475,7 +1479,7 @@ class _StatusBar extends StatelessWidget {
                           15,
                           weight: 600,
                           color: hint != null
-                              ? const Color(0xFFFFB4A8)
+                              ? Palette.warn
                               : myTurn
                               ? Palette.text
                               : Palette.muted,
@@ -1509,7 +1513,7 @@ class _StatusBar extends StatelessWidget {
                 if (myTurn && g.phase == Phase.afterDraw) ...[
                   _ActionButton(
                     label: 'Keep',
-                    color: Palette.surfaceHigh,
+                    color: const Color(0xFF3A3F4A),
                     onTap: c.pass,
                   ),
                   const SizedBox(width: 8),
@@ -1853,9 +1857,10 @@ class _Hand extends StatelessWidget {
     final extra = g.comboPartners(GameController.human, card).length;
     return _CardLook(
       up: true,
-      glow: Colors.white.withValues(alpha: 0.35),
+      glow: Palette.dark
+          ? Colors.white.withValues(alpha: 0.35)
+          : Colors.black.withValues(alpha: 0.28),
       badge: extra > 0 ? '×${extra + 1}' : null,
-      badgeColor: Palette.surfaceHigh,
     );
   }
 
@@ -2433,8 +2438,8 @@ class _TurnOrderPanel extends StatelessWidget {
                     children: [
                       for (var i = 0; i < order.length; i++) ...[
                         if (i > 0)
-                          const Padding(
-                            padding: EdgeInsets.symmetric(horizontal: 4),
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 4),
                             child: Icon(
                               Icons.chevron_right_rounded,
                               color: Palette.muted,
@@ -2505,7 +2510,7 @@ class _CardLook {
     this.dim = false,
     this.glow,
     this.badge,
-    this.badgeColor = Palette.surfaceHigh,
+    this.badgeColor = const Color(0xFF3A3F4A),
   });
 
   final bool up;

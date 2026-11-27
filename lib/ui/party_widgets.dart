@@ -79,7 +79,11 @@ class SeatAvatar extends StatelessWidget {
 }
 
 class PartyChip extends StatelessWidget {
-  const PartyChip(this.label, {super.key, this.color = Palette.surfaceHigh});
+  const PartyChip(
+    this.label, {
+    super.key,
+    this.color = const Color(0xFF3A3F4A),
+  });
 
   final String label;
   final Color color;
@@ -144,7 +148,7 @@ class _ThinkingDotsState extends State<ThinkingDots>
                     width: 5,
                     height: 5,
                     decoration: const BoxDecoration(
-                      color: Palette.ink,
+                      color: Palette.cardInk,
                       shape: BoxShape.circle,
                     ),
                   ),
@@ -193,7 +197,7 @@ class PartyScaffold extends StatelessWidget {
                 colors: [
                   Color.alphaBlend(
                     (color ?? accent).withValues(alpha: 0.24),
-                    const Color(0xFF1A1D23),
+                    Palette.felt,
                   ),
                   Palette.ink,
                 ],

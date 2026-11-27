@@ -323,7 +323,7 @@ class _Panel extends StatelessWidget {
       child: Column(
         children: [
           for (var i = 0; i < children.length; i++) ...[
-            if (i > 0) const Divider(height: 1, color: Palette.line),
+            if (i > 0) Divider(height: 1, color: Palette.line),
             children[i],
           ],
         ],
@@ -427,8 +427,17 @@ class _Segments<T> extends StatelessWidget {
                 ),
                 decoration: BoxDecoration(
                   color: v == selected
-                      ? Palette.surfaceHigh
+                      ? (Palette.dark ? Palette.surfaceHigh : Palette.surface)
                       : Colors.transparent,
+                  boxShadow: v == selected && !Palette.dark
+                      ? [
+                          BoxShadow(
+                            color: Colors.black.withValues(alpha: 0.12),
+                            blurRadius: 3,
+                            offset: const Offset(0, 1),
+                          ),
+                        ]
+                      : null,
                   borderRadius: BorderRadius.circular(9),
                 ),
                 child: Text(

@@ -2,16 +2,38 @@ import 'package:material_ui/material_ui.dart';
 
 import 'package:last_card_core/cards.dart';
 
-/// Design tokens. One dark table palette; card colors carry the brand.
+/// Design tokens for the dark table and the light one. The card colors
+/// carry the brand and stay the same in both.
 abstract final class Palette {
-  static const ink = Color(0xFF14161B);
-  static const surface = Color(0xFF1D2027);
-  static const surfaceHigh = Color(0xFF272B34);
-  static const line = Color(0xFF343944);
-  static const text = Color(0xFFF6F3EC);
-  static const muted = Color(0xFF9AA1AD);
+  /// The current look; set by [ThemeSwitch] before the app rebuilds.
+  static bool dark = true;
+
+  static Color get ink =>
+      dark ? const Color(0xFF14161B) : const Color(0xFFF3EFE6);
+  static Color get surface =>
+      dark ? const Color(0xFF1D2027) : const Color(0xFFFFFDF8);
+  static Color get surfaceHigh =>
+      dark ? const Color(0xFF272B34) : const Color(0xFFE9E3D7);
+  static Color get line =>
+      dark ? const Color(0xFF343944) : const Color(0xFFDAD3C4);
+  static Color get text =>
+      dark ? const Color(0xFFF6F3EC) : const Color(0xFF1D1F25);
+  static Color get muted =>
+      dark ? const Color(0xFF9AA1AD) : const Color(0xFF6A6F79);
+
+  /// Middle of the table, under the glow of the active color.
+  static Color get felt =>
+      dark ? const Color(0xFF1A1D23) : const Color(0xFFFFFCF5);
+
+  /// Soft warning text (hints, errors).
+  static Color get warn =>
+      dark ? const Color(0xFFFFB4A8) : const Color(0xFFB3261E);
+
   static const brand = Color(0xFFE5392C);
   static const cardWhite = Color(0xFFFFFDF7);
+
+  /// Text and marks on white pieces (badges, banners, cards).
+  static const cardInk = Color(0xFF14161B);
 
   static Color of(CardColor c) => switch (c) {
     CardColor.red => const Color(0xFFE5392C),
@@ -49,7 +71,7 @@ ThemeData buildTheme() {
   final scheme =
       ColorScheme.fromSeed(
         seedColor: Palette.brand,
-        brightness: Brightness.dark,
+        brightness: Palette.dark ? Brightness.dark : Brightness.light,
       ).copyWith(
         primary: Palette.brand,
         onPrimary: Colors.white,
@@ -83,15 +105,15 @@ ThemeData buildTheme() {
       style: OutlinedButton.styleFrom(
         minimumSize: const Size(64, 48),
         foregroundColor: Palette.text,
-        side: const BorderSide(color: Palette.line, width: 1.5),
+        side: BorderSide(color: Palette.line, width: 1.5),
         textStyle: font(15, weight: 600),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
     ),
-    bottomSheetTheme: const BottomSheetThemeData(
+    bottomSheetTheme: BottomSheetThemeData(
       backgroundColor: Palette.surface,
       showDragHandle: true,
-      shape: RoundedRectangleBorder(
+      shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(28)),
       ),
     ),

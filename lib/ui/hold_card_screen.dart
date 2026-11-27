@@ -339,7 +339,7 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
                             last.match ? 'MATCH' : 'NO MATCH',
                             color: last.match
                                 ? const Color(0xFFE09A00)
-                                : Palette.surfaceHigh,
+                                : const Color(0xFF3A3F4A),
                           ),
                   ),
                 ],
@@ -464,7 +464,9 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
             onPressed: live ? () => _press(me) : null,
             style: FilledButton.styleFrom(
               backgroundColor: race ? Palette.brand : const Color(0xFF5C2520),
+              foregroundColor: Colors.white,
               disabledBackgroundColor: Palette.surfaceHigh,
+              disabledForegroundColor: Palette.muted,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
               ),
@@ -474,7 +476,14 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
               children: [
                 const Icon(Icons.back_hand_rounded),
                 const SizedBox(width: 10),
-                Text('HOLD CARD', style: font(20, weight: 700)),
+                Text(
+                  'HOLD CARD',
+                  style: font(
+                    20,
+                    weight: 700,
+                    color: live ? Colors.white : Palette.muted,
+                  ),
+                ),
               ],
             ),
           ),
@@ -588,7 +597,11 @@ class _CountBadge extends StatelessWidget {
       child: Text(
         '$count',
         textAlign: TextAlign.center,
-        style: font(12, weight: 700, color: hot ? Colors.white : Palette.ink),
+        style: font(
+          12,
+          weight: 700,
+          color: hot ? Colors.white : Palette.cardInk,
+        ),
       ),
     );
   }

@@ -15,3 +15,8 @@ Future<bool> shareLink({
   required String text,
   required String url,
 }) => impl.shareLink(title: title, text: text, url: url);
+
+/// Matches the browser chrome (address bar, status bar, page behind the
+/// app) to the app's background.
+void setPageColors({required String background, required bool dark}) =>
+    impl.setPageColors(background: background, dark: dark);

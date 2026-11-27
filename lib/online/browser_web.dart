@@ -38,3 +38,20 @@ Future<bool> shareLink({
     return false;
   }
 }
+
+void setPageColors({required String background, required bool dark}) {
+  try {
+    final doc = web.document;
+    void meta(String name, String content) {
+      final el = doc.querySelector('meta[name="$name"]');
+      if (el != null) (el as web.HTMLMetaElement).content = content;
+    }
+
+    meta('theme-color', background);
+    meta('color-scheme', dark ? 'dark' : 'light');
+    doc.documentElement?.setAttribute('style', 'background: $background');
+    doc.body?.style.background = background;
+  } catch (_) {
+    // Cosmetic only.
+  }
+}

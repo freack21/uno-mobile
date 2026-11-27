@@ -12,6 +12,7 @@ import 'mode_screen.dart';
 import 'playing_card.dart';
 import 'sfx.dart';
 import 'theme.dart';
+import 'theme_switch.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, this.joinCode});
@@ -87,7 +88,10 @@ class _Hero extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Align(alignment: Alignment.centerRight, child: SoundButton()),
+        const Row(
+          mainAxisAlignment: MainAxisAlignment.end,
+          children: [ThemeButton(), SoundButton()],
+        ),
         SizedBox(
           height: 150,
           child: Stack(
@@ -240,7 +244,7 @@ class _ModeTile extends StatelessWidget {
                   ],
                 ),
               ),
-              const Icon(Icons.chevron_right_rounded, color: Palette.muted),
+              Icon(Icons.chevron_right_rounded, color: Palette.muted),
             ],
           ),
         ),
@@ -265,4 +269,48 @@ class SoundButton extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Light, dark, or the device's own setting.
+class ThemeButton extends StatelessWidget {
+  const ThemeButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final themes = ThemeSwitch.instance;
+    return ListenableBuilder(
+      listenable: themes,
+      builder: (context, _) => PopupMenuButton<ThemeChoice>(
+        tooltip: 'Light or dark',
+        initialValue: themes.choice,
+        onSelected: themes.pick,
+        color: Palette.surface,
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        icon: Icon(_icon(themes.choice), color: Palette.text),
+        itemBuilder: (context) => [
+          for (final c in ThemeChoice.values)
+            PopupMenuItem(
+              value: c,
+              child: Row(
+                children: [
+                  Icon(_icon(c), size: 20, color: Palette.text),
+                  const SizedBox(width: 12),
+                  Text(switch (c) {
+                    ThemeChoice.system => 'Same as device',
+                    ThemeChoice.light => 'Light',
+                    ThemeChoice.dark => 'Dark',
+                  }, style: font(15, weight: c == themes.choice ? 650 : 500)),
+                ],
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  static IconData _icon(ThemeChoice c) => switch (c) {
+    ThemeChoice.system => Icons.brightness_auto_rounded,
+    ThemeChoice.light => Icons.light_mode_rounded,
+    ThemeChoice.dark => Icons.dark_mode_rounded,
+  };
 }

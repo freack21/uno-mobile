@@ -118,7 +118,10 @@ class _UpdateToastState extends State<UpdateToast> {
                         color: Colors.white,
                       ),
                     )
-                  : Text('Update', style: font(14, weight: 650)),
+                  : Text(
+                      'Update',
+                      style: font(14, weight: 650, color: Colors.white),
+                    ),
             ),
           ],
         ),
