@@ -10,6 +10,10 @@ flutter build web --release \
   --web-content-hash \
   --base-href "$BASE_HREF"
 
+# The app's sound files are not used on the web (web/sfx.js synthesizes the
+# sounds): keep them out of the offline cache so they are never downloaded.
+dart run tool/prune_precache.dart
+
 # Stamp the service worker so each build is detected as an update.
 VERSION="$(sha256sum build/web/precache_manifest.json | cut -c1-12)"
 sed -i "s/__BUILD_VERSION__/${VERSION}/" build/web/sw.js
