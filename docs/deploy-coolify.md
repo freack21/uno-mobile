@@ -22,10 +22,11 @@ Two services run from `docker-compose.yml`:
 
 Only `web` gets the domain. Online rooms live in the server's memory and are
 saved every few seconds (and on shutdown) to `/data/rooms.json` on the `rooms`
-volume, so a redeploy keeps every room, nickname, score and match history:
-players reconnect on their own. A match that is running at that moment cannot
-be resumed; it is stopped unscored and the lobby says so. No database and no
-secrets. Rooms nobody reconnects to are removed after 30 minutes.
+volume, so a redeploy keeps every room, nickname, score and match history,
+and a match that is running carries on from the same cards: players reconnect
+on their own (bots and idle turns keep the table moving meanwhile). Only a
+save from an incompatible version is dropped, and the lobby says so. No
+database and no secrets. Rooms nobody reconnects to are removed after 30 minutes.
 
 Keep one replica of `server`: rooms are not shared between instances.
 
