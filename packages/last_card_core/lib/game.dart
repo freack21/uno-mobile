@@ -96,6 +96,10 @@ class Game {
     startRound();
   }
 
+  /// An empty game to be filled from a saved or received state (no deal).
+  Game.restore({required this.rules, required this.players, Random? rng})
+    : rng = rng ?? Random();
+
   final RuleSet rules;
   final List<Player> players;
   final Random rng;

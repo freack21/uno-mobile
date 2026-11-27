@@ -233,7 +233,11 @@ class PartyScaffold extends StatelessWidget {
 }
 
 /// Pause menu; returns 'guide', 'restart', 'quit' or null (resume).
-Future<String?> showPartyMenu(BuildContext context, GameMode mode) {
+Future<String?> showPartyMenu(
+  BuildContext context,
+  GameMode mode, {
+  bool online = false,
+}) {
   return showModalBottomSheet<String>(
     context: context,
     builder: (context) => SafeArea(
@@ -268,17 +272,19 @@ Future<String?> showPartyMenu(BuildContext context, GameMode mode) {
               icon: const Icon(Icons.menu_book_rounded),
               label: Text('How to play ${mode.name}'),
             ),
-            const SizedBox(height: 10),
-            OutlinedButton.icon(
-              onPressed: () => Navigator.pop(context, 'restart'),
-              icon: const Icon(Icons.refresh_rounded),
-              label: const Text('Restart'),
-            ),
+            if (!online) ...[
+              const SizedBox(height: 10),
+              OutlinedButton.icon(
+                onPressed: () => Navigator.pop(context, 'restart'),
+                icon: const Icon(Icons.refresh_rounded),
+                label: const Text('Restart'),
+              ),
+            ],
             const SizedBox(height: 10),
             OutlinedButton.icon(
               onPressed: () => Navigator.pop(context, 'quit'),
               icon: const Icon(Icons.logout_rounded),
-              label: const Text('Quit to menu'),
+              label: Text(online ? 'Back to lobby' : 'Quit to menu'),
             ),
           ],
         ),
@@ -312,7 +318,9 @@ class PartyResults extends StatefulWidget {
   final String subtitle;
   final bool won;
   final List<ResultRow> rows;
-  final VoidCallback onAgain;
+
+  /// Null online: the next match is started from the lobby.
+  final VoidCallback? onAgain;
   final VoidCallback onMenu;
 
   @override
@@ -406,15 +414,21 @@ class _PartyResultsState extends State<PartyResults> {
                       ),
                     ),
                   const SizedBox(height: 18),
-                  FilledButton(
-                    onPressed: widget.onAgain,
-                    child: const Text('Play again'),
-                  ),
-                  const SizedBox(height: 10),
-                  OutlinedButton(
-                    onPressed: widget.onMenu,
-                    child: const Text('Menu'),
-                  ),
+                  if (widget.onAgain != null) ...[
+                    FilledButton(
+                      onPressed: widget.onAgain,
+                      child: const Text('Play again'),
+                    ),
+                    const SizedBox(height: 10),
+                    OutlinedButton(
+                      onPressed: widget.onMenu,
+                      child: const Text('Menu'),
+                    ),
+                  ] else
+                    FilledButton(
+                      onPressed: widget.onMenu,
+                      child: const Text('Back to lobby'),
+                    ),
                 ],
               ),
             ),

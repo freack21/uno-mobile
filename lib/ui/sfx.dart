@@ -32,6 +32,14 @@ void playSfx(Sfx sound) {
   if (soundOn.value) platform.play(sound.name);
 }
 
+/// Plays a sound by its [Sfx] name (as sent in table notes); unknown names
+/// are ignored.
+void playSfxNamed(String name) {
+  for (final s in Sfx.values) {
+    if (s.name == name) return playSfx(s);
+  }
+}
+
 void setSoundOn(bool on) {
   soundOn.value = on;
   platform.setMuted(!on);

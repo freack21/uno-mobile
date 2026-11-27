@@ -7,6 +7,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:last_card_core/cards.dart';
 import 'package:last_card_core/exact_score.dart';
 import 'package:last_card_core/modes.dart';
+import 'package:last_card_core/party_tables.dart';
 import 'package:last_card_core/rules.dart';
 
 import 'game_controller.dart' show TableBanner, botNames;
@@ -21,9 +22,10 @@ class ExactScoreScreen extends StatefulWidget {
   const ExactScoreScreen({
     super.key,
     required this.mode,
-    required this.players,
-    required this.difficulty,
+    this.players = 4,
+    this.difficulty = Difficulty.normal,
     this.target,
+    this.table,
   });
 
   final GameMode mode;
@@ -33,259 +35,136 @@ class ExactScoreScreen extends StatefulWidget {
   /// Fixed target, or null for a random one from 20 to 50.
   final int? target;
 
+  /// An online table mirrored from the server; null plays offline vs bots.
+  final ExactScoreTable? table;
+
   @override
   State<ExactScoreScreen> createState() => _ExactScoreScreenState();
 }
-
-/// How far the drawn card's reveal has got.
-enum _Stage { tease, reveal, choose, bust }
 
 class _ExactScoreScreenState extends State<ExactScoreScreen> {
   static const me = 0;
   static const tickMs = 110;
   final _rng = Random();
-  late ExactScoreGame g;
-  final _timers = <Timer>[];
-  bool _paused = false;
+  late ExactScoreTable t;
   TableBanner? _banner;
-  int _bannerId = 0;
+  int _seenNote = 0;
+  bool _endPlayed = false;
+  final _tickTimers = <Timer>[];
 
-  /// Reveal stage of the drawn card; null between draws.
-  _Stage? _stage;
-
-  /// Bumped per draw so card and track animations replay.
-  int _turnId = 0;
-
-  /// Points before the last scoring move, per seat: those ticks animate in.
-  final _fillFrom = <int, int>{};
-
-  /// Last card resolved, shown faded on the table.
-  GameCard? _last;
+  bool get online => widget.table != null;
+  ExactScoreGame get g => t.game;
 
   @override
   void initState() {
     super.initState();
-    _newGame();
+    if (online) {
+      t = widget.table!;
+      _seenNote = t.notes.isEmpty ? 0 : t.notes.last.id;
+      t.onChange = _onChange;
+    } else {
+      _newGame();
+    }
   }
 
   @override
   void dispose() {
-    _cancelTimers();
+    for (final x in _tickTimers) {
+      x.cancel();
+    }
+    if (online) {
+      t.onChange = null;
+    } else {
+      t.dispose();
+    }
     super.dispose();
   }
 
-  // ----------------------------------------------------------------- flow
-
-  void _after(int ms, VoidCallback fn) {
-    late final Timer t;
-    t = Timer(Duration(milliseconds: ms), () {
-      _timers.remove(t);
-      if (mounted && !_paused) fn();
-    });
-    _timers.add(t);
-  }
-
-  void _cancelTimers() {
-    for (final t in _timers) {
-      t.cancel();
-    }
-    _timers.clear();
-  }
-
   void _newGame() {
-    _cancelTimers();
     final target = widget.target ?? 20 + _rng.nextInt(7) * 5;
-    g = ExactScoreGame(
-      players: [
-        ScorePlayer(me, 'You', isHuman: true),
-        for (var i = 1; i < widget.players; i++)
-          ScorePlayer(i, botNames[i - 1]),
-      ],
-      target: target,
+    t = ExactScoreTable(
+      game: ExactScoreGame(
+        players: [
+          ScorePlayer(me, 'You', isHuman: true),
+          for (var i = 1; i < widget.players; i++)
+            ScorePlayer(i, botNames[i - 1]),
+        ],
+        target: target,
+        rng: _rng,
+      ),
+      humans: {me},
+      difficulty: widget.difficulty,
       rng: _rng,
-    );
+    )..onChange = _onChange;
+    _seenNote = 0;
+    _endPlayed = false;
     _banner = null;
-    _last = null;
-    _stage = null;
-    _fillFrom.clear();
-    playSfx(Sfx.shuffle);
-    _after(1100, _nextTurn);
+    t.start();
   }
 
-  int _pace(int ms) {
-    final f = switch (widget.difficulty) {
-      Difficulty.easy => 1.15,
-      Difficulty.normal => 1.0,
-      Difficulty.hard => 0.9,
-    };
-    return (ms * f).round();
-  }
-
-  void _nextTurn() {
-    if (g.phase == ScorePhase.over) return;
-    setState(() {});
-    if (g.current == me) {
-      playSfx(Sfx.turn);
-      return;
-    }
-    final seat = g.current;
-    _after(_pace(1000 + _rng.nextInt(700)), () => _draw(seat));
-  }
-
-  /// Draws for [seat] and plays the reveal: tease, flip, resolve.
-  void _draw(int seat) {
-    if (g.current != seat || g.phase != ScorePhase.draw) return;
-    g.draw(seat);
-    _turnId++;
-    _stage = _Stage.tease;
-    playSfx(Sfx.draw);
-    setState(() {});
-    _after(1150, () {
-      _stage = _Stage.reveal;
-      playSfx(Sfx.flip);
-      setState(() {});
-      _after(750, () => _resolve(seat));
-    });
-  }
-
-  void _resolve(int seat) {
-    final f = g.drawnFace!;
-    final p = g.players[seat];
-    if (!g.canUse(seat)) {
-      _stage = _Stage.bust;
-      playSfx(Sfx.nope);
-      _say(
-        f.kind == CardKind.number ? 'BUST!' : 'WASTED',
-        f.kind == CardKind.number
-            ? '${p.name} needed ${g.remaining(seat)}, drew ${f.value}'
-            : 'Nobody has points to take yet',
-        color: Palette.brand,
-      );
-      setState(() {});
-      _after(1200, () {
-        _last = g.drawn;
-        g.bust(seat);
-        _stage = null;
-        _afterMove();
-      });
-      return;
-    }
-    final needsChoice =
-        f.kind == CardKind.wild ||
-        f.kind == CardKind.wildDraw ||
-        f.kind == CardKind.draw;
-    if (needsChoice && seat == me) {
-      setState(() => _stage = _Stage.choose);
-      return;
-    }
-    final choice = needsChoice
-        ? decideExactScore(g, seat, widget.difficulty, _rng)
-        : (value: null, victim: null);
-    _use(seat, value: choice.value, victim: choice.victim);
-  }
-
-  void _use(int seat, {int? value, int? victim}) {
-    final f = g.drawnFace!;
-    final card = g.drawn!;
-    final p = g.players[seat];
-    final before = p.score;
-    final victimScore = victim == null ? 0 : g.players[victim].score;
-    g.use(seat, value: value, victim: victim);
-    _last = card;
-    _stage = null;
-    var wait = 900;
-    switch (f.kind) {
-      case CardKind.skip:
-        playSfx(Sfx.skip);
-      case CardKind.reverse:
-        playSfx(Sfx.reverse);
-        if (g.players.length > 2) _say('REVERSE', 'Play changes direction');
-      case CardKind.draw:
-        playSfx(Sfx.penalty);
-        final v = g.players[victim!];
-        _fillFrom[victim] = v.score;
-        _say(
-          '−${victimScore - v.score}',
-          '${p.name} hit ${v.isHuman ? 'you' : v.name}',
-          color: Palette.brand,
+  /// Turns new notes into banners and sounds, then repaints.
+  void _onChange() {
+    if (!mounted) return;
+    for (final n in t.notes) {
+      if (n.id <= _seenNote) continue;
+      if (n.forSeat != null && n.forSeat != me) continue;
+      if (n.title.isNotEmpty) {
+        _banner = TableBanner(
+          n.id,
+          n.title,
+          subtitle: n.subtitle,
+          color: n.alert ? Palette.brand : null,
         );
-      default:
-        // Numbers and Wilds: cross the points off one by one.
-        final gained = p.score - before;
-        _fillFrom[seat] = before;
-        if (f.isWild) playSfx(Sfx.wild);
-        for (var i = 0; i < gained; i++) {
-          _after(tickMs * i + 120, () => playSfx(Sfx.tick));
-        }
-        _say(
-          '+$gained',
-          '${p.name} ${p.isHuman ? 'are' : 'is'} on ${p.score}/${g.target}',
+      }
+      if (n.sound != null) playSfxNamed(n.sound!);
+      for (var i = 0; i < n.ticks; i++) {
+        _tickTimers.add(
+          Timer(
+            Duration(milliseconds: tickMs * i + 120),
+            () => playSfx(Sfx.tick),
+          ),
         );
-        wait = 700 + gained * tickMs;
+      }
     }
-    setState(() {});
-    _after(wait, _afterMove);
-  }
-
-  void _afterMove() {
-    if (g.phase == ScorePhase.over) {
+    if (t.notes.isNotEmpty) _seenNote = t.notes.last.id;
+    if (t.isOver && !_endPlayed) {
+      _endPlayed = true;
       playSfx(g.winner == me ? Sfx.win : Sfx.lose);
-      setState(() {});
-      return;
-    }
-    final skipped = g.lastSkipped;
-    if (skipped.isNotEmpty) {
-      final names = skipped.map((s) => g.players[s].name).join(' & ');
-      _say(
-        'SKIP',
-        '$names ${skipped.length == 1 && skipped.first != me ? 'loses' : 'lose'} a turn',
-      );
     }
     setState(() {});
-    _after(skipped.isEmpty ? 500 : 1200, _nextTurn);
-  }
-
-  void _say(String title, String subtitle, {Color? color}) {
-    _banner = TableBanner(++_bannerId, title, subtitle: subtitle, color: color);
   }
 
   Future<void> _menu() async {
-    _paused = true;
-    _cancelTimers();
-    final action = await showPartyMenu(context, widget.mode);
+    if (!online) t.pause();
+    final action = await showPartyMenu(context, widget.mode, online: online);
     if (!mounted) return;
-    _paused = false;
     switch (action) {
       case 'guide':
         await Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => GuideScreen(mode: widget.mode)),
         );
-        if (mounted) _resume();
+        if (mounted && !online) t.unpause();
       case 'restart':
+        t.dispose();
         setState(_newGame);
       case 'quit':
         Navigator.pop(context);
       default:
-        _resume();
-    }
-  }
-
-  void _resume() {
-    if (g.phase == ScorePhase.over) return;
-    if (g.phase == ScorePhase.decide) {
-      // Waiting for the human's choice needs nothing; anything else resolves.
-      if (_stage != _Stage.choose) _resolve(g.current);
-    } else {
-      _nextTurn();
+        if (!online) t.unpause();
     }
   }
 
   void _humanDraw() {
-    if (g.current != me || g.phase != ScorePhase.draw) return;
+    if (g.current != me || g.phase != ScorePhase.draw || t.stage != null) {
+      return;
+    }
     HapticFeedback.lightImpact();
-    _draw(me);
+    t.draw(me);
   }
+
+  void _wild(int v) => t.chooseWild(me, v);
+  void _victim(int s) => t.chooseVictim(me, s);
 
   // ------------------------------------------------------------------- UI
 
@@ -294,8 +173,9 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
     final myTurn = g.current == me && g.phase != ScorePhase.over;
     return PartyScaffold(
       mode: widget.mode,
-      subtitle: 'Target ${g.target} · ${widget.difficulty.label}',
-      accent: _stage == _Stage.bust
+      subtitle:
+          'Target ${g.target} · ${online ? 'Online' : widget.difficulty.label}',
+      accent: t.stage == ExactStage.bust
           ? Palette.brand
           : myTurn
           ? const Color(0xFF2475D6)
@@ -437,18 +317,18 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
                         SizedBox(
                           height: 92 * cardAspect,
                           child: Center(
-                            child: drawn != null && _stage != null
+                            child: drawn != null && t.stage != null
                                 ? _Spotlight(
-                                    key: ValueKey(_turnId),
+                                    key: ValueKey(t.turnId),
                                     face: drawn.light,
-                                    stage: _stage!,
+                                    stage: t.stage!,
                                   )
-                                : _last != null
+                                : t.last != null
                                 ? Opacity(
                                     opacity: 0.4,
                                     child: PlayingCard(
                                       width: 80,
-                                      face: _last!.light,
+                                      face: t.last!.light,
                                     ),
                                   )
                                 : const SizedBox(),
@@ -486,22 +366,20 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
     final p = g.players[g.current];
     if (g.phase == ScorePhase.over) {
       text = '';
-    } else if (_stage == _Stage.choose) {
+    } else if (t.stage == ExactStage.choose) {
       final f = g.drawnFace!;
       if (f.kind == CardKind.draw) {
         text = 'Take 2 points from…';
         for (final s in g.victims(me)) {
-          choices.add(
-            _chip('victim-$s', g.players[s].name, () => _use(me, victim: s)),
-          );
+          choices.add(_chip('victim-$s', g.players[s].name, () => _victim(s)));
         }
       } else {
         text = 'Wild! Add any value up to ${min(9, g.remaining(me))}';
         for (final v in g.wildValues(me)) {
-          choices.add(_chip('wild-$v', '+$v', () => _use(me, value: v)));
+          choices.add(_chip('wild-$v', '+$v', () => _wild(v)));
         }
       }
-    } else if (_stage != null) {
+    } else if (t.stage != null) {
       text = p.isHuman ? 'Drawing…' : '${p.name} draws…';
     } else if (g.current == me) {
       text = 'Your turn — tap the deck to draw';
@@ -551,7 +429,7 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
   Widget _track() {
     final p = g.players[me];
     const perRow = 10;
-    final from = _fillFrom[me] ?? p.score;
+    final from = t.fillFrom[me] ?? p.score;
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -597,7 +475,7 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
                           : i >= from && i < p.score
                           // Newly scored: cross off one after another.
                           ? _Tick(
-                              key: ValueKey('$_turnId-$i'),
+                              key: ValueKey('$t.turnId-$i'),
                               filled: true,
                               delay: (i - from) * tickMs + 120,
                             )
@@ -628,7 +506,12 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
             winner: p.seat == w,
           ),
       ],
-      onAgain: () => setState(_newGame),
+      onAgain: online
+          ? null
+          : () {
+              t.dispose();
+              setState(_newGame);
+            },
       onMenu: () => Navigator.pop(context),
     );
   }
@@ -640,7 +523,7 @@ class _Spotlight extends StatefulWidget {
   const _Spotlight({super.key, required this.face, required this.stage});
 
   final CardFace face;
-  final _Stage stage;
+  final ExactStage stage;
 
   @override
   State<_Spotlight> createState() => _SpotlightState();
@@ -667,11 +550,11 @@ class _SpotlightState extends State<_Spotlight> with TickerProviderStateMixin {
   @override
   void didUpdateWidget(_Spotlight old) {
     super.didUpdateWidget(old);
-    if (widget.stage != _Stage.tease && !_flip.isCompleted) {
+    if (widget.stage != ExactStage.tease && !_flip.isCompleted) {
       _wobble.stop();
       _flip.forward();
     }
-    if (widget.stage == _Stage.bust && old.stage != _Stage.bust) {
+    if (widget.stage == ExactStage.bust && old.stage != ExactStage.bust) {
       _shake.forward(from: 0);
     }
   }
@@ -691,13 +574,13 @@ class _SpotlightState extends State<_Spotlight> with TickerProviderStateMixin {
       animation: Listenable.merge([_enter, _wobble, _flip, _shake]),
       builder: (context, _) {
         final enter = Curves.easeOutBack.transform(_enter.value);
-        final teasing = widget.stage == _Stage.tease;
+        final teasing = widget.stage == ExactStage.tease;
         final wobble = teasing ? (_wobble.value - 0.5) * 0.12 : 0.0;
         final flip = _flip.value;
         final faceUp = flip >= 0.5;
         final squash = max(0.06, (cos(flip * pi)).abs());
         final shake = sin(_shake.value * pi * 6) * 8 * (1 - _shake.value);
-        final bust = widget.stage == _Stage.bust;
+        final bust = widget.stage == ExactStage.bust;
         return Transform.translate(
           // Out of the deck on the left, into the spotlight.
           offset: Offset(-110 * (1 - enter) + shake, -10 * sin(enter * pi)),

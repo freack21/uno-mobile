@@ -31,6 +31,13 @@ class ExactScoreGame {
     current = this.rng.nextInt(players.length);
   }
 
+  /// An empty game to be filled from a received state (no deck).
+  ExactScoreGame.restore({
+    required this.players,
+    required this.target,
+    Random? rng,
+  }) : rng = rng ?? Random();
+
   final List<ScorePlayer> players;
   final int target;
   final Random rng;

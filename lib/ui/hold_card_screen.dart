@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math';
 
 import 'package:flutter/services.dart';
@@ -7,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:last_card_core/cards.dart';
 import 'package:last_card_core/hold_card.dart';
 import 'package:last_card_core/modes.dart';
+import 'package:last_card_core/party_tables.dart';
 import 'package:last_card_core/rules.dart';
 
 import 'game_controller.dart' show TableBanner, botNames;
@@ -21,15 +21,19 @@ class HoldCardScreen extends StatefulWidget {
   const HoldCardScreen({
     super.key,
     required this.mode,
-    required this.players,
-    required this.difficulty,
+    this.players = 4,
+    this.difficulty = Difficulty.normal,
     this.guess = HoldGuess.number,
+    this.table,
   });
 
   final GameMode mode;
   final int players;
   final Difficulty difficulty;
   final HoldGuess guess;
+
+  /// An online table mirrored from the server; null plays offline vs bots.
+  final HoldCardTable? table;
 
   @override
   State<HoldCardScreen> createState() => _HoldCardScreenState();
@@ -39,210 +43,106 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
   static const me = 0;
   static const gold = Color(0xFFF4B620);
   final _rng = Random();
-  late HoldCardGame g;
-  late List<HoldBot?> _bots;
-  final _timers = <Timer>[];
-  bool _paused = false;
+  late HoldCardTable t;
   TableBanner? _banner;
-  int _bannerId = 0;
-
-  /// Bumped for every card put in the box, to replay the flip.
-  int _playId = 0;
+  int _seenNote = 0;
+  bool _endPlayed = false;
 
   /// The human's call for this turn, before picking a card.
   HoldCall? _call;
+  int _callForPlay = -1;
+
+  bool get online => widget.table != null;
+  HoldCardGame get g => t.game;
 
   @override
   void initState() {
     super.initState();
-    _newGame();
+    if (online) {
+      t = widget.table!;
+      _seenNote = t.notes.isEmpty ? 0 : t.notes.last.id;
+      t.onChange = _onChange;
+    } else {
+      _newGame();
+    }
   }
 
   @override
   void dispose() {
-    _cancelTimers();
+    if (online) {
+      t.onChange = null;
+    } else {
+      t.dispose();
+    }
     super.dispose();
   }
 
-  // ----------------------------------------------------------------- flow
-
-  void _after(int ms, VoidCallback fn) {
-    late final Timer t;
-    t = Timer(Duration(milliseconds: ms), () {
-      _timers.remove(t);
-      if (mounted && !_paused) fn();
-    });
-    _timers.add(t);
-  }
-
-  void _cancelTimers() {
-    for (final t in _timers) {
-      t.cancel();
-    }
-    _timers.clear();
-  }
-
   void _newGame() {
-    _cancelTimers();
-    g = HoldCardGame(
-      players: [
-        HoldPlayer(me, 'You', isHuman: true),
-        for (var i = 1; i < widget.players; i++) HoldPlayer(i, botNames[i - 1]),
-      ],
-      guess: widget.guess,
+    t = HoldCardTable(
+      game: HoldCardGame(
+        players: [
+          HoldPlayer(me, 'You', isHuman: true),
+          for (var i = 1; i < widget.players; i++)
+            HoldPlayer(i, botNames[i - 1]),
+        ],
+        guess: widget.guess,
+        rng: _rng,
+      ),
+      humans: {me},
+      difficulty: widget.difficulty,
       rng: _rng,
-    );
-    _bots = [
-      for (var i = 0; i < widget.players; i++)
-        i == me ? null : HoldBot(widget.difficulty, _rng),
-    ];
+    )..onChange = _onChange;
+    _seenNote = 0;
+    _endPlayed = false;
     _banner = null;
     _call = null;
-    playSfx(Sfx.shuffle);
-    _after(1000, _nextTurn);
+    t.start();
   }
 
-  void _nextTurn() {
-    if (g.phase != HoldPhase.call) return;
-    _call = null;
-    setState(() {});
-    final seat = g.current;
-    if (seat == me) {
-      playSfx(Sfx.turn);
-      return;
-    }
-    final bot = _bots[seat]!;
-    final pace = switch (widget.difficulty) {
-      Difficulty.easy => 1.2,
-      Difficulty.normal => 1.0,
-      Difficulty.hard => 0.85,
-    };
-    _after(((1000 + _rng.nextInt(800)) * pace).round(), () {
-      if (g.phase != HoldPhase.call || g.current != seat) return;
-      _place(seat, bot.call(g.guess), bot.pick(g.players[seat]));
-    });
-  }
-
-  void _place(int seat, HoldCall call, int index) {
-    final play = g.place(seat, call, index);
-    _playId++;
-    playSfx(Sfx.flip);
-    final p = g.players[seat];
-    if (play.drew > 0) {
-      playSfx(Sfx.penalty);
-      _say(
-        '+${play.drew}',
-        '${p.name} ${p.isHuman ? 'draw' : 'draws'} ${play.drew} from the stock',
-        color: Palette.brand,
-      );
-    }
-    if (play.match) {
-      playSfx(Sfx.last);
-      for (final q in g.players) {
-        final t = _bots[q.seat]?.reaction();
-        if (t != null) _after(t, () => _press(q.seat));
+  /// Turns new notes into banners and sounds, then repaints.
+  void _onChange() {
+    if (!mounted) return;
+    for (final n in t.notes) {
+      if (n.id <= _seenNote) continue;
+      if (n.forSeat != null && n.forSeat != me) continue;
+      if (n.title.isNotEmpty) {
+        _banner = TableBanner(
+          n.id,
+          n.title,
+          subtitle: n.subtitle,
+          color: n.alert ? Palette.brand : null,
+        );
       }
-      _after(2400, _settle);
-      setState(() {});
-      return;
+      if (n.sound != null) playSfxNamed(n.sound!);
     }
-    final kind = play.card.light.kind;
-    if (play.drew == 0 && kind == CardKind.skip) {
-      playSfx(Sfx.skip);
-      _say('SKIP', 'The next player loses a turn');
-    } else if (play.drew == 0 && kind == CardKind.reverse) {
-      playSfx(Sfx.reverse);
-      _say('REVERSE', 'Play changes direction');
-    }
-    // A jumpy bot may slap HOLD on a miss before the next turn starts.
-    for (final q in g.players) {
-      final t = _bots[q.seat]?.falsePress();
-      if (t != null) _after(t, () => _press(q.seat));
+    if (t.notes.isNotEmpty) _seenNote = t.notes.last.id;
+    // A new turn clears the human's previous call.
+    if (_callForPlay != t.playId) _call = null;
+    if (t.isOver && !_endPlayed) {
+      _endPlayed = true;
+      playSfx(g.winners.contains(me) ? Sfx.win : Sfx.lose);
     }
     setState(() {});
-    if (g.phase == HoldPhase.over) {
-      _finish();
-    } else {
-      _after(play.drew > 0 ? 1900 : 1400, _nextTurn);
-    }
-  }
-
-  void _press(int seat) {
-    if (g.phase == HoldPhase.over) return;
-    if (g.phase == HoldPhase.race && g.presses.contains(seat)) return;
-    if (seat == me) HapticFeedback.heavyImpact();
-    playSfx(Sfx.tick);
-    final r = g.press(seat);
-    setState(() {});
-    if (r != null) _resolved(r);
-  }
-
-  void _settle() {
-    if (g.phase != HoldPhase.race) return;
-    _resolved(g.settle());
-  }
-
-  void _resolved(HoldResult r) {
-    _cancelTimers();
-    final taker = g.players[r.taker!];
-    final you = taker.isHuman;
-    _say(
-      r.falsePress ? 'TOO EARLY!' : '+${r.taken}',
-      r.falsePress
-          ? '${taker.name} pressed without a match: ${r.taken} cards'
-          : you
-          ? 'Too slow! You take the box'
-          : '${taker.name} was slowest and takes the box',
-      color: Palette.brand,
-    );
-    playSfx(you ? Sfx.caught : Sfx.penalty);
-    setState(() {});
-    if (g.phase == HoldPhase.over) {
-      _finish();
-    } else {
-      _after(1900, _nextTurn);
-    }
-  }
-
-  void _finish() {
-    playSfx(g.winners.contains(me) ? Sfx.win : Sfx.lose);
-    setState(() {});
-  }
-
-  void _say(String title, String subtitle, {Color? color}) {
-    _banner = TableBanner(++_bannerId, title, subtitle: subtitle, color: color);
   }
 
   Future<void> _menu() async {
-    _paused = true;
-    _cancelTimers();
-    final action = await showPartyMenu(context, widget.mode);
+    if (!online) t.pause();
+    final action = await showPartyMenu(context, widget.mode, online: online);
     if (!mounted) return;
-    _paused = false;
     switch (action) {
       case 'guide':
         await Navigator.push(
           context,
           MaterialPageRoute(builder: (_) => GuideScreen(mode: widget.mode)),
         );
-        if (mounted) _resume();
+        if (mounted && !online) t.unpause();
       case 'restart':
+        t.dispose();
         setState(_newGame);
       case 'quit':
         Navigator.pop(context);
       default:
-        _resume();
-    }
-  }
-
-  void _resume() {
-    switch (g.phase) {
-      case HoldPhase.call:
-        _nextTurn();
-      case HoldPhase.race:
-        _after(600, _settle);
-      case HoldPhase.over:
-        break;
+        if (!online) t.unpause();
     }
   }
 
@@ -251,7 +151,10 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
   void _chooseCall(HoldCall call) {
     HapticFeedback.selectionClick();
     playSfx(Sfx.tick);
-    setState(() => _call = call);
+    setState(() {
+      _call = call;
+      _callForPlay = t.playId;
+    });
   }
 
   void _pickCard(int index) {
@@ -259,7 +162,12 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
     if (call == null || g.current != me || g.phase != HoldPhase.call) return;
     HapticFeedback.lightImpact();
     playSfx(Sfx.card);
-    _place(me, call, index);
+    t.place(me, call, index);
+  }
+
+  void _press(int seat) {
+    HapticFeedback.heavyImpact();
+    t.press(seat);
   }
 
   // ------------------------------------------------------------------- UI
@@ -294,7 +202,7 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
       mode: widget.mode,
       subtitle:
           'Guess the ${g.guess.label.toLowerCase()} · '
-          '${widget.difficulty.label}',
+          '${online ? 'Online' : widget.difficulty.label}',
       accent: race ? gold : Palette.brand,
       onMenu: _menu,
       child: Stack(
@@ -404,7 +312,7 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
                   last == null
                       ? SizedBox(width: 84, height: 84 * cardAspect)
                       : TweenAnimationBuilder<double>(
-                          key: ValueKey(_playId),
+                          key: ValueKey(t.playId),
                           tween: Tween(begin: 0, end: 1),
                           duration: const Duration(milliseconds: 460),
                           curve: Curves.easeOutBack,
@@ -649,7 +557,12 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
             winner: winners.contains(p.seat),
           ),
       ],
-      onAgain: () => setState(_newGame),
+      onAgain: online
+          ? null
+          : () {
+              t.dispose();
+              setState(_newGame);
+            },
       onMenu: () => Navigator.pop(context),
     );
   }

@@ -89,6 +89,14 @@ class HoldCardGame {
     current = this.rng.nextInt(players.length);
   }
 
+  /// An empty game to be filled from a received state (no deal).
+  HoldCardGame.restore({
+    required this.players,
+    required this.guess,
+    Random? rng,
+    this.handSize = 10,
+  }) : rng = rng ?? Random();
+
   final List<HoldPlayer> players;
   final HoldGuess guess;
   final Random rng;
