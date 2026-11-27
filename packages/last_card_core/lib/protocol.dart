@@ -160,12 +160,13 @@ Map<String, Object?> gameView(Game g, int viewer) {
   };
 }
 
-/// Rebuilds a game from [gameView] output; seat 0 is the viewer.
-Game gameFromView(Map<String, dynamic> j) {
+/// Rebuilds a game from [gameView] output; seat 0 is the viewer, who is the
+/// human unless [humans] says otherwise.
+Game gameFromView(Map<String, dynamic> j, {List<bool>? humans}) {
   final pj = (j['players'] as List).cast<Map<String, dynamic>>();
   final players = [
     for (var i = 0; i < pj.length; i++)
-      Player(i, pj[i]['name'] as String, isHuman: i == 0)
+      Player(i, pj[i]['name'] as String, isHuman: humans?[i] ?? i == 0)
         ..score = pj[i]['score'] as int
         ..out = pj[i]['out'] as bool
         ..calledLast = pj[i]['called'] as bool
@@ -221,6 +222,7 @@ Game gameFromView(Map<String, dynamic> j) {
     );
   }
   g.version = j['version'] as int;
+  g.continueEvents();
   return g;
 }
 
@@ -253,12 +255,12 @@ Map<String, Object?> exactView(ExactScoreGame g, int viewer) {
   };
 }
 
-ExactScoreGame exactFromView(Map<String, dynamic> j) {
+ExactScoreGame exactFromView(Map<String, dynamic> j, {List<bool>? humans}) {
   final pj = (j['players'] as List).cast<Map<String, dynamic>>();
   final g = ExactScoreGame.restore(
     players: [
       for (var i = 0; i < pj.length; i++)
-        ScorePlayer(i, pj[i]['name'] as String, isHuman: i == 0)
+        ScorePlayer(i, pj[i]['name'] as String, isHuman: humans?[i] ?? i == 0)
           ..score = pj[i]['score'] as int
           ..skipNext = pj[i]['skip'] as bool,
     ],
@@ -310,13 +312,13 @@ Map<String, Object?> holdView(HoldCardGame g, int viewer) {
   };
 }
 
-HoldCardGame holdFromView(Map<String, dynamic> j) {
+HoldCardGame holdFromView(Map<String, dynamic> j, {List<bool>? humans}) {
   final pj = (j['players'] as List).cast<Map<String, dynamic>>();
   var id = -1;
   final g = HoldCardGame.restore(
     players: [
       for (var i = 0; i < pj.length; i++)
-        HoldPlayer(i, pj[i]['name'] as String, isHuman: i == 0)
+        HoldPlayer(i, pj[i]['name'] as String, isHuman: humans?[i] ?? i == 0)
           ..hand.addAll([
             for (var k = 0; k < (pj[i]['cards'] as int); k++) dummyCard(id--),
           ]),

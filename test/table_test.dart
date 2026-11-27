@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -9,6 +10,7 @@ import 'package:last_card_core/modes.dart';
 import 'package:last_card_core/party_tables.dart';
 import 'package:last_card_core/rules.dart';
 import 'package:last_card_core/shed_table.dart';
+import 'package:last_card_core/snapshot.dart';
 import 'package:last_card_core/table.dart';
 
 /// Waits until [t] reports the end of its match.
@@ -137,6 +139,137 @@ void main() {
     expect(t.play(seat, -5), isFalse, reason: 'card not in hand');
     expect(t.draw(seat), isTrue);
     t.dispose();
+  });
+
+  group('saved tables pick up where they stopped', () {
+    /// Runs [t] for [steps] changes, saves it, throws it away, loads the
+    /// save and plays that to the end.
+    Future<TableRuntime> roundTrip(TableRuntime t, int steps) async {
+      final saved = Completer<Map<String, dynamic>>();
+      var n = 0;
+      t.onChange = () {
+        if (++n == steps && !saved.isCompleted && !t.isOver) {
+          // Through JSON, as on disk.
+          saved.complete(jsonDecode(jsonEncode(saveTable(t))));
+        }
+      };
+      t.start();
+      final j = await saved.future.timeout(const Duration(seconds: 30));
+      t.dispose();
+      final loaded = loadTable(j, pace: pace, idleMs: idle, introMs: 0);
+      expect(
+        jsonEncode(saveTable(loaded)),
+        jsonEncode(j),
+        reason: 'a loaded table saves the same state',
+      );
+      final done = Completer<void>();
+      loaded.onChange = () {
+        if (loaded.isOver && !done.isCompleted) done.complete();
+      };
+      resumeTable(loaded);
+      await done.future.timeout(const Duration(seconds: 60));
+      loaded.dispose();
+      return loaded;
+    }
+
+    for (final mode in gameModes.where(
+      (m) => m.kind == GameKind.shedding && !m.isCustom,
+    )) {
+      test(mode.name, () async {
+        final count = mode.rules.teams ? 4 : max(mode.minPlayers, 3);
+        final g = Game(
+          rules: mode.rules,
+          players: [for (var i = 0; i < count; i++) Player(i, 'P$i')],
+          rng: Random(11),
+        );
+        final total = [
+          ...g.drawPile,
+          ...g.discard,
+          for (final p in g.players) ...p.hand,
+        ].length;
+        final t = ShedTable(
+          game: g,
+          humans: {0, 1},
+          pace: pace,
+          idleMs: idle,
+          introMs: 0,
+          rng: Random(11),
+        );
+        final after = await roundTrip(t, 8) as ShedTable;
+        final lg = after.game;
+        expect(lg.isMatchOver, isTrue);
+        expect(
+          [
+            ...lg.drawPile,
+            ...lg.discard,
+            for (final p in lg.players) ...p.hand,
+          ].length,
+          total,
+          reason: 'no card lost or made up',
+        );
+        expectStandings(after, count);
+      });
+    }
+
+    for (final steps in [2, 25, 60, 120]) {
+      test('Point Race saved after $steps changes', () async {
+        final mode = gameModes.firstWhere((m) => m.id == 'points');
+        final t = ShedTable(
+          game: Game(
+            rules: mode.rules.copyWith(targetScore: 250),
+            players: [for (var i = 0; i < 3; i++) Player(i, 'P$i')],
+            rng: Random(steps),
+          ),
+          humans: {0},
+          pace: pace,
+          idleMs: idle,
+          introMs: 0,
+          roundBreakMs: 0,
+          rng: Random(steps),
+        );
+        final after = await roundTrip(t, steps) as ShedTable;
+        expect(after.game.isMatchOver, isTrue);
+        expectStandings(after, 3);
+      });
+    }
+
+    for (final steps in [3, 9, 20]) {
+      test('Exact Score saved after $steps changes', () async {
+        final t = ExactScoreTable(
+          game: ExactScoreGame(
+            players: [for (var i = 0; i < 3; i++) ScorePlayer(i, 'P$i')],
+            target: 25,
+            rng: Random(4),
+          ),
+          humans: {0},
+          pace: pace,
+          idleMs: idle,
+          rng: Random(4),
+        );
+        final after = await roundTrip(t, steps) as ExactScoreTable;
+        expect(after.game.winner, isNotNull);
+        expectStandings(after, 3);
+      });
+    }
+
+    for (final steps in [4, 12, 30]) {
+      test('Hold Card saved after $steps changes', () async {
+        final t = HoldCardTable(
+          game: HoldCardGame(
+            players: [for (var i = 0; i < 3; i++) HoldPlayer(i, 'P$i')],
+            guess: HoldGuess.color,
+            rng: Random(6),
+          ),
+          humans: {0},
+          pace: pace,
+          idleMs: idle,
+          rng: Random(6),
+        );
+        final after = await roundTrip(t, steps) as HoldCardTable;
+        expect(after.game.winners, isNotEmpty);
+        expectStandings(after, 3);
+      });
+    }
   });
 
   test('rankBy shares places on ties', () {

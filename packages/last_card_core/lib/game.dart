@@ -886,6 +886,14 @@ class Game {
 
   void _changed() => version++;
 
+  /// After loading [events] from a saved state: new events continue the
+  /// numbering, so nobody mistakes them for ones already seen.
+  void continueEvents() {
+    for (final e in events) {
+      if (e.id > _eventId) _eventId = e.id;
+    }
+  }
+
   /// Total number of cards in play; constant for a deck (used by tests).
   int get cardCount =>
       drawPile.length +

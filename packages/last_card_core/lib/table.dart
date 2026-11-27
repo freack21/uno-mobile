@@ -71,7 +71,9 @@ abstract class TableRuntime {
 
   /// Recent notes, newest last.
   final List<TableNote> notes = [];
-  int _noteId = 0;
+
+  /// The id of the latest note; saved so a restored table numbers on.
+  int noteId = 0;
 
   final _timers = <Timer>[];
   bool _paused = false;
@@ -116,7 +118,7 @@ abstract class TableRuntime {
   }) {
     notes.add(
       TableNote(
-        ++_noteId,
+        ++noteId,
         title,
         subtitle: subtitle,
         sound: sound,
