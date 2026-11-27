@@ -298,6 +298,60 @@ void main() {
     await cs[0].close();
   });
 
+  test('rooms survive a restart; a running match is reported', () async {
+    final (cs, id, pass) = await room(1);
+    final token = cs[1].inbox.firstWhere((m) => isType(m, 'welcome'))['token'];
+    cs[0].send({'t': 'nick', 'name': 'Ana'});
+    cs[0].send({'t': 'setup', 'mode': 'classic', 'bots': 1});
+    await cs[1].next(
+      (m) =>
+          isType(m, 'room') &&
+          m['setup']['bots'] == 1 &&
+          (m['members'] as List).any((x) => x['name'] == 'Ana'),
+    );
+    cs[0].send({'t': 'start'});
+    final done = await cs[0].next(
+      (m) => isType(m, 'room') && (m['history'] as List).isNotEmpty,
+    );
+    cs[0].send({'t': 'start'});
+    await cs[0].next(
+      (m) => isType(m, 'room') && m['playing'] == true,
+      from: cs[0].inbox.length,
+    );
+
+    // The old process saves and stops; a new one loads the file.
+    final saved = jsonDecode(jsonEncode(lobby.snapshot()));
+    for (final c in cs) {
+      await c.close();
+    }
+    lobby.close();
+    await server.close(force: true);
+    lobby = Lobby(
+      config: const ServerConfig(pace: 0.0005, idleMs: 40, introMs: 0),
+    );
+    expect(lobby.restore(saved as Map<String, dynamic>), 1);
+    server = await io.serve(
+      createHandler(lobby),
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+
+    final back = await Client.connect(server.port);
+    back.send({'t': 'join', 'room': id, 'pass': pass, 'token': token});
+    final view = await back.next((m) => isType(m, 'room'));
+    expect(view['you'], done['members'][1]['id']);
+    expect(view['host'], done['host']);
+    expect(view['interrupted'], 'Classic');
+    expect(view['playing'], isFalse);
+    expect(view['history'], done['history']);
+    expect(
+      [for (final x in view['members'] as List) (x['name'], x['points'])],
+      [for (final x in done['members'] as List) (x['name'], x['points'])],
+    );
+    expect(view['setup']['bots'], 1);
+    await back.close();
+  });
+
   test('leaving hands the host role on', () async {
     final (cs, _, _) = await room(1);
     final guestView = await cs[1].next((m) => isType(m, 'room'));

@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:last_card_server/rooms.dart';
@@ -16,6 +18,37 @@ Future<void> main(List<String> args) async {
       introMs: int.tryParse(env['LC_INTRO_MS'] ?? '') ?? 8400,
     ),
   );
+  // Rooms survive restarts and redeploys when a data directory is set.
+  final dataDir = env['LC_DATA_DIR'];
+  final store = dataDir == null || dataDir.isEmpty
+      ? null
+      : File('$dataDir/rooms.json');
+  if (store != null && store.existsSync()) {
+    try {
+      final n = lobby.restore(
+        jsonDecode(store.readAsStringSync()) as Map<String, dynamic>,
+      );
+      stdout.writeln('Restored $n room(s)');
+    } catch (e) {
+      stderr.writeln('Could not restore rooms: $e');
+    }
+  }
+  var saved = '';
+  void save() {
+    if (store == null) return;
+    final text = jsonEncode(lobby.snapshot());
+    if (text == saved) return;
+    try {
+      // Write then rename, so a crash never leaves half a file.
+      final tmp = File('${store.path}.tmp')..writeAsStringSync(text);
+      tmp.renameSync(store.path);
+      saved = text;
+    } catch (e) {
+      stderr.writeln('Could not save rooms: $e');
+    }
+  }
+
+  final saver = Timer.periodic(const Duration(seconds: 5), (_) => save());
   final server = await io.serve(
     createHandler(lobby),
     InternetAddress.anyIPv4,
@@ -24,6 +57,8 @@ Future<void> main(List<String> args) async {
   stdout.writeln('Last Card server listening on :${server.port}');
   for (final signal in [ProcessSignal.sigterm, ProcessSignal.sigint]) {
     signal.watch().listen((_) async {
+      saver.cancel();
+      save();
       lobby.close();
       await server.close(force: true);
       exit(0);

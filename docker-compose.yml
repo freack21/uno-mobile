@@ -33,6 +33,9 @@ services:
         DEBIAN_IMAGE: ${DEBIAN_IMAGE:-debian:bookworm-slim}
     expose:
       - "8081"
+    volumes:
+      # Saved rooms, so a redeploy does not end them.
+      - rooms:/data
     restart: unless-stopped
     init: true
     healthcheck:
@@ -41,3 +44,6 @@ services:
       timeout: 5s
       start_period: 5s
       retries: 3
+
+volumes:
+  rooms:

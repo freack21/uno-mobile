@@ -95,6 +95,21 @@ class Member {
   Connection? connection;
   int points = 0;
   bool get online => connection != null;
+
+  Map<String, Object?> toJson() => {
+    'id': id,
+    'token': token,
+    'name': name,
+    'color': color,
+    'points': points,
+  };
+
+  static Member fromJson(Map<String, dynamic> j) => Member(
+    j['id'] as String,
+    j['token'] as String,
+    j['name'] as String,
+    j['color'] as int,
+  )..points = j['points'] as int;
 }
 
 class Setup {
@@ -119,6 +134,15 @@ class Setup {
     'guess': guess.index,
     'custom': rulesToJson(custom),
   };
+
+  void restore(Map<String, dynamic> j) {
+    modeId = j['mode'] as String;
+    bots = j['bots'] as int;
+    difficulty = Difficulty.values[j['difficulty'] as int];
+    target = j['target'] as int;
+    guess = HoldGuess.values[j['guess'] as int];
+    custom = rulesFromJson(j['custom'] as Map<String, dynamic>);
+  }
 }
 
 /// A running match: who sits where and the table that runs it.
@@ -145,6 +169,17 @@ class Match {
 
 class MatchRecord {
   MatchRecord(this.mode, this.ranks);
+
+  static MatchRecord fromJson(Map<String, dynamic> j) =>
+      MatchRecord(j['mode'] as String, [
+        for (final r in j['ranks'] as List)
+          (
+            name: r['name'] as String,
+            place: r['place'] as int,
+            points: r['points'] as int,
+            bot: r['bot'] as bool,
+          ),
+      ]);
 
   final String mode;
   final List<({String name, int place, int points, bool bot})> ranks;
@@ -173,6 +208,49 @@ class Room {
   int _matchSerial = 0;
   bool finished = false;
   DateTime lastActive = DateTime.now();
+
+  /// The mode of a match the server dropped while restarting, until the
+  /// next match starts.
+  String? interrupted;
+
+  /// Everything needed to bring the room back after a restart. A running
+  /// match cannot be resumed; it is reported as interrupted instead.
+  Map<String, Object?> toJson() {
+    final m = match;
+    return {
+      'id': id,
+      'pass': password,
+      'host': hostId,
+      'members': [for (final x in members) x.toJson()],
+      'setup': setup.toJson(),
+      'history': [for (final h in history) h.toJson()],
+      'serial': _matchSerial,
+      'finished': finished,
+      'interrupted': m != null && !m.table.isOver ? m.mode.name : interrupted,
+    };
+  }
+
+  static Room fromJson(
+    Map<String, dynamic> j,
+    ServerConfig config,
+    Random rng,
+  ) {
+    final r = Room(j['id'] as String, j['pass'] as String, config, rng)
+      ..hostId = j['host'] as String?
+      .._matchSerial = j['serial'] as int
+      ..finished = j['finished'] as bool
+      ..interrupted = j['interrupted'] as String?;
+    r.members.addAll([
+      for (final x in j['members'] as List)
+        Member.fromJson(x as Map<String, dynamic>),
+    ]);
+    r.setup.restore(j['setup'] as Map<String, dynamic>);
+    r.history.addAll([
+      for (final h in j['history'] as List)
+        MatchRecord.fromJson(h as Map<String, dynamic>),
+    ]);
+    return r;
+  }
 
   Member? member(String id) {
     for (final m in members) {
@@ -229,6 +307,7 @@ class Room {
       'matchId': m?.id,
       'matchMode': m?.mode.id,
       'finished': finished,
+      'interrupted': interrupted,
       'history': [for (final h in history) h.toJson()],
     };
   }
@@ -388,6 +467,7 @@ class Room {
       ..colors.addAll(colors);
     match = m;
     finished = false;
+    interrupted = null;
     table.onChange = () => _onMatchChange(m);
     table.start();
     broadcastRoom();
@@ -520,6 +600,29 @@ class Lobby {
       if (stale) r.dispose();
       return stale;
     });
+  }
+
+  /// All rooms, for saving across restarts.
+  Map<String, Object?> snapshot() => {
+    'version': 1,
+    'rooms': [for (final r in rooms.values) r.toJson()],
+  };
+
+  /// Brings back rooms from [snapshot]; returns how many. Members reconnect
+  /// with their saved tokens.
+  int restore(Map<String, dynamic> snapshot) {
+    if (snapshot['version'] != 1) return 0;
+    var count = 0;
+    for (final j in snapshot['rooms'] as List) {
+      try {
+        final r = Room.fromJson(j as Map<String, dynamic>, config, rng);
+        rooms[r.id] = r;
+        count++;
+      } catch (_) {
+        // A room that cannot be read is dropped; the rest still load.
+      }
+    }
+    return count;
   }
 
   void close() {

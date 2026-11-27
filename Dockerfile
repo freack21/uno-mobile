@@ -30,10 +30,13 @@ FROM sdk AS server-build
 RUN mkdir -p /out && cd server && dart compile exe bin/server.dart -o /out/server
 
 FROM ${DEBIAN_IMAGE} AS server
-RUN useradd --system --uid 10001 --no-create-home lastcard
+# /data holds rooms.json so rooms survive restarts (mount a volume there).
+RUN useradd --system --uid 10001 --no-create-home lastcard \
+ && mkdir -p /data && chown lastcard:lastcard /data
 COPY --from=server-build /out/server /app/server
 USER lastcard
-ENV PORT=8081
+ENV PORT=8081 \
+    LC_DATA_DIR=/data
 EXPOSE 8081
 HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
   CMD ["/app/server", "--healthcheck"]
