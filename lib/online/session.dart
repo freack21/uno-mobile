@@ -96,6 +96,9 @@ class OnlineSession extends ChangeNotifier {
   void endSession() => _send({'t': 'end'});
   void act(Map<String, Object?> action) => _send({'t': 'act', ...action});
 
+  /// Stops offering the saved room (it no longer exists).
+  void forgetSaved() => writeStored(_storeKey, null);
+
   void leave() {
     _send({'t': 'leave'});
     writeStored(_storeKey, null);

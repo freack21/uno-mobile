@@ -81,7 +81,15 @@ class _OnlineHomeScreenState extends State<OnlineHomeScreen> {
   }
 
   void _create() => _run(_session.create);
-  void _join() => _run(() => _session.join(_room.text, _pass.text));
+  void _join() => _run(() async {
+    final problem = await _session.join(_room.text, _pass.text);
+    // A saved room that is gone (expired): do not offer it again.
+    if ((problem?.startsWith('Wrong room') ?? false) &&
+        _session.saved?.$1 == _room.text.trim().toUpperCase()) {
+      _session.forgetSaved();
+    }
+    return problem;
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -268,6 +276,7 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
     if (_session.room == null) {
       // Left the room (or it was closed): back to the online menu.
       if (_hadRoom && Navigator.of(context).canPop()) {
+        _hadRoom = false; // Pop once, even if more updates arrive.
         Navigator.of(context).pop();
       }
       return;
@@ -1082,6 +1091,10 @@ class _OnlineMatchScreenState extends State<OnlineMatchScreen> {
   late final GameMode _mode;
   int _seenError = _session.errorId;
 
+  /// Set once this screen asked to close; later updates must not pop again
+  /// (that would close the lobby under it).
+  bool _closing = false;
+
   @override
   void initState() {
     super.initState();
@@ -1115,7 +1128,7 @@ class _OnlineMatchScreenState extends State<OnlineMatchScreen> {
   }
 
   void _onSession() {
-    if (!mounted) return;
+    if (!mounted || _closing) return;
     if (_session.errorId != _seenError) {
       _seenError = _session.errorId;
       final text = _session.error;
@@ -1134,6 +1147,7 @@ class _OnlineMatchScreenState extends State<OnlineMatchScreen> {
     final room = _session.room;
     // Left the room, or the match is gone (the server restarted mid-match).
     if (room == null || room['matchId'] != _matchId) {
+      _closing = true;
       Navigator.of(context).pop();
       return;
     }

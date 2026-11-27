@@ -5,6 +5,7 @@ import 'package:last_card_core/modes.dart';
 import 'package:last_card_core/rules.dart';
 
 import '../online/online_screens.dart';
+import '../online/session.dart';
 import 'game_screen.dart';
 import 'guide_screen.dart';
 import 'mode_screen.dart';
@@ -26,7 +27,11 @@ class _HomeScreenState extends State<HomeScreen> {
   @override
   void initState() {
     super.initState();
-    final code = widget.joinCode;
+    // An invite link, or else the room this device was last playing in (the
+    // app was closed, reloaded or updated without leaving it).
+    final saved = OnlineSession.instance.saved;
+    final code =
+        widget.joinCode ?? (saved == null ? null : '${saved.$1}-${saved.$2}');
     if (code != null) {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         Navigator.push(
