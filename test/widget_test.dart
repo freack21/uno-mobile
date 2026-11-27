@@ -3,6 +3,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:uno_mobile/game/modes.dart';
 import 'package:uno_mobile/game/rules.dart';
 import 'package:uno_mobile/main.dart';
+import 'package:uno_mobile/ui/game_controller.dart';
 import 'package:uno_mobile/ui/game_screen.dart';
 import 'package:uno_mobile/ui/guide_screen.dart';
 import 'package:uno_mobile/ui/mode_screen.dart';
@@ -75,6 +76,44 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
   }
+
+  testWidgets('a banner shows once, not again on later rebuilds', (
+    tester,
+  ) async {
+    var banner = const TableBanner(1, 'SKIP');
+    late StateSetter rebuild;
+    await tester.pumpWidget(
+      wrap(
+        StatefulBuilder(
+          builder: (context, setState) {
+            rebuild = setState;
+            return Scaffold(body: TableBannerView(banner: banner));
+          },
+        ),
+      ),
+    );
+    // First appearance comes with the update that posts the banner.
+    rebuild(() => banner = const TableBanner(2, 'SKIP'));
+    await tester.pump();
+    expect(find.text('SKIP'), findsOneWidget);
+
+    await tester.pump(const Duration(seconds: 3));
+    await tester.pump(const Duration(milliseconds: 500)); // fade-out
+    expect(find.text('SKIP'), findsNothing);
+
+    // Other turns rebuild the table with the same (old) banner.
+    for (var i = 0; i < 3; i++) {
+      rebuild(() {});
+      await tester.pump(const Duration(milliseconds: 500));
+      expect(find.text('SKIP'), findsNothing, reason: 'stale banner re-shown');
+    }
+
+    // A genuinely new banner still shows.
+    rebuild(() => banner = const TableBanner(3, 'REVERSE'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('REVERSE'), findsOneWidget);
+    await tester.pump(const Duration(seconds: 3));
+  });
 
   testWidgets('basics guide renders', (tester) async {
     await phone(tester);

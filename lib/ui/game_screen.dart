@@ -693,7 +693,7 @@ class _Table extends StatelessWidget {
             Positioned(bottom: 6, child: _ColorPill(color: g.activeColor)),
             Align(
               alignment: const Alignment(0, -0.88),
-              child: _BannerView(banner: controller.banner),
+              child: TableBannerView(banner: controller.banner),
             ),
           ],
         );
@@ -971,24 +971,35 @@ class _RingPainter extends CustomPainter {
 }
 
 /// Pops a big label for a moment whenever the controller posts a banner.
-class _BannerView extends StatefulWidget {
-  const _BannerView({required this.banner});
+class TableBannerView extends StatefulWidget {
+  const TableBannerView({super.key, required this.banner});
 
   final TableBanner? banner;
 
   @override
-  State<_BannerView> createState() => _BannerViewState();
+  State<TableBannerView> createState() => _TableBannerViewState();
 }
 
-class _BannerViewState extends State<_BannerView> {
+class _TableBannerViewState extends State<TableBannerView> {
   TableBanner? _shown;
   Timer? _timer;
 
+  /// Last banner already announced. The controller keeps its latest banner
+  /// until a new one arrives, so every later rebuild passes the same one.
+  int? _lastId;
+
   @override
-  void didUpdateWidget(_BannerView old) {
+  void initState() {
+    super.initState();
+    _lastId = widget.banner?.id;
+  }
+
+  @override
+  void didUpdateWidget(TableBannerView old) {
     super.didUpdateWidget(old);
     final b = widget.banner;
-    if (b != null && b.id != _shown?.id) {
+    if (b != null && b.id != _lastId) {
+      _lastId = b.id;
       _shown = b;
       _timer?.cancel();
       _timer = Timer(const Duration(milliseconds: 1700), () {
