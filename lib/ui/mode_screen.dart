@@ -1,9 +1,10 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../game/cards.dart';
-import '../game/hold_card.dart';
-import '../game/modes.dart';
-import '../game/rules.dart';
+import 'package:last_card_core/cards.dart';
+import 'package:last_card_core/hold_card.dart';
+import 'package:last_card_core/modes.dart';
+import 'package:last_card_core/rules.dart';
+
 import 'exact_score_screen.dart';
 import 'game_screen.dart';
 import 'hold_card_screen.dart';

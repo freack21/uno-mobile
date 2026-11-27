@@ -1,7 +1,7 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:material_ui/material_ui.dart';
-import 'package:uno_mobile/game/modes.dart';
-import 'package:uno_mobile/game/rules.dart';
+import 'package:last_card_core/modes.dart';
+import 'package:last_card_core/rules.dart';
 import 'package:uno_mobile/main.dart';
 import 'package:uno_mobile/ui/game_controller.dart';
 import 'package:uno_mobile/ui/exact_score_screen.dart';

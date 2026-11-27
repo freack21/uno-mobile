@@ -1,6 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../game/cards.dart';
+import 'package:last_card_core/cards.dart';
 
 /// Design tokens. One dark table palette; card colors carry the brand.
 abstract final class Palette {

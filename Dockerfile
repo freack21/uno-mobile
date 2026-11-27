@@ -19,6 +19,7 @@ RUN flutter config --no-analytics --no-cli-animations >/dev/null \
  && flutter precache --web --no-android --no-ios
 WORKDIR /app
 COPY pubspec.yaml pubspec.lock ./
+COPY packages ./packages
 RUN flutter pub get
 COPY . .
 RUN tool/build_web.sh /

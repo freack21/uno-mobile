@@ -3,11 +3,12 @@ import 'dart:math';
 
 import 'package:material_ui/material_ui.dart';
 
-import '../game/bot.dart';
-import '../game/cards.dart';
-import '../game/game.dart';
-import '../game/modes.dart';
-import '../game/rules.dart';
+import 'package:last_card_core/bot.dart';
+import 'package:last_card_core/cards.dart';
+import 'package:last_card_core/game.dart';
+import 'package:last_card_core/modes.dart';
+import 'package:last_card_core/rules.dart';
+
 import 'sfx.dart';
 import 'theme.dart';
 

@@ -10,6 +10,8 @@ dependencies:
   flutter:
     sdk: flutter
   material_ui: ^1.1.0
+  last_card_core:
+    path: packages/last_card_core
 
 dev_dependencies:
   flutter_test:

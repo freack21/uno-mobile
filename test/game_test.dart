@@ -1,11 +1,11 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:uno_mobile/game/bot.dart';
-import 'package:uno_mobile/game/cards.dart';
-import 'package:uno_mobile/game/game.dart';
-import 'package:uno_mobile/game/modes.dart';
-import 'package:uno_mobile/game/rules.dart';
+import 'package:last_card_core/bot.dart';
+import 'package:last_card_core/cards.dart';
+import 'package:last_card_core/game.dart';
+import 'package:last_card_core/modes.dart';
+import 'package:last_card_core/rules.dart';
 
 List<Player> seats(int n) => [
   for (var i = 0; i < n; i++) Player(i, 'P$i', isHuman: i == 0),

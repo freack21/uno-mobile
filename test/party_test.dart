@@ -1,10 +1,10 @@
 import 'dart:math';
 
 import 'package:flutter_test/flutter_test.dart';
-import 'package:uno_mobile/game/cards.dart';
-import 'package:uno_mobile/game/exact_score.dart';
-import 'package:uno_mobile/game/hold_card.dart';
-import 'package:uno_mobile/game/rules.dart';
+import 'package:last_card_core/cards.dart';
+import 'package:last_card_core/exact_score.dart';
+import 'package:last_card_core/hold_card.dart';
+import 'package:last_card_core/rules.dart';
 
 var _ids = 50000;
 GameCard face(CardColor c, CardKind k, {int value = 0, int draw = 0}) =>

@@ -3,7 +3,8 @@ import 'dart:math';
 
 import 'package:material_ui/material_ui.dart';
 
-import '../game/modes.dart';
+import 'package:last_card_core/modes.dart';
+
 import 'guide_screen.dart';
 import 'sfx.dart';
 import 'theme.dart';

@@ -1,7 +1,8 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../game/cards.dart';
-import '../game/modes.dart';
+import 'package:last_card_core/cards.dart';
+import 'package:last_card_core/modes.dart';
+
 import 'playing_card.dart';
 import 'theme.dart';
 

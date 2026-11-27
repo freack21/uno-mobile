@@ -4,10 +4,11 @@ import 'dart:math';
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
-import '../game/cards.dart';
-import '../game/game.dart';
-import '../game/modes.dart';
-import '../game/rules.dart';
+import 'package:last_card_core/cards.dart';
+import 'package:last_card_core/game.dart';
+import 'package:last_card_core/modes.dart';
+import 'package:last_card_core/rules.dart';
+
 import 'game_controller.dart';
 import 'guide_screen.dart';
 import 'playing_card.dart';

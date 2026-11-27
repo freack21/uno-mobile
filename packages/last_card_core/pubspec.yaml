@@ -1,0 +1,10 @@
+name: last_card_core
+description: Rules, bots and online protocol shared by the Last Card app and server.
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.8.0
+
+dev_dependencies:
+  lints: ^6.0.0

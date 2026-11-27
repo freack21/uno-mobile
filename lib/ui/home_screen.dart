@@ -1,8 +1,9 @@
 import 'package:material_ui/material_ui.dart';
 
-import '../game/cards.dart';
-import '../game/modes.dart';
-import '../game/rules.dart';
+import 'package:last_card_core/cards.dart';
+import 'package:last_card_core/modes.dart';
+import 'package:last_card_core/rules.dart';
+
 import 'game_screen.dart';
 import 'guide_screen.dart';
 import 'mode_screen.dart';

@@ -2,7 +2,8 @@ import 'dart:math';
 
 import 'package:material_ui/material_ui.dart';
 
-import '../game/cards.dart';
+import 'package:last_card_core/cards.dart';
+
 import 'theme.dart';
 
 const cardAspect = 1.45;
