@@ -21,9 +21,16 @@ jobs:
           cache: true
 
       - run: flutter pub get
-      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: dart format --output=none --set-exit-if-changed lib test packages server
       - run: flutter analyze
       - run: flutter test
+
+      - name: Server tests
+        working-directory: server
+        run: |
+          dart pub get
+          dart analyze
+          dart test
 
       - uses: actions/setup-node@v4
         with:
@@ -42,12 +49,17 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Build image
-        run: docker build -t uno-mobile:ci .
-      - name: Smoke test container
+      - name: Build images
+        run: |
+          docker build --target web -t uno-mobile:ci .
+          docker build --target server -t uno-server:ci .
+      - name: Smoke test containers
         run: |
           set -euo pipefail
-          docker run -d --name app -p 8080:8080 uno-mobile:ci
+          # Same layout as docker-compose: the web container reaches "server".
+          docker network create lastcard
+          docker run -d --name server --network lastcard uno-server:ci
+          docker run -d --name app --network lastcard -p 8080:8080 uno-mobile:ci
           for _ in $(seq 1 30); do
             curl -fsS http://127.0.0.1:8080/healthz >/dev/null && break
             sleep 1
@@ -74,11 +86,25 @@ jobs:
             sleep 3
           done
           docker inspect -f '{{.State.Health.Status}}' app | grep -qx healthy
-          docker stop -t 10 app
+          # WebSocket upgrade through nginx to the game server.
+          code=$(curl -s -o /dev/null -w '%{http_code}' --max-time 3 --http1.1 \
+            -H 'Connection: Upgrade' -H 'Upgrade: websocket' \
+            -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' \
+            http://127.0.0.1:8080/ws || true)
+          test "$code" = "101"
+          test "$(docker exec server id -u)" != "0"
+          for _ in $(seq 1 20); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' server)" = healthy ] && break
+            sleep 3
+          done
+          docker inspect -f '{{.State.Health.Status}}' server | grep -qx healthy
+          docker stop -t 10 app server
           test "$(docker inspect -f '{{.State.ExitCode}}' app)" = "0"
       - name: Container logs
         if: failure()
-        run: docker logs app || true
+        run: |
+          docker logs app || true
+          docker logs server || true
 
   deploy:
     needs: [test, image]
