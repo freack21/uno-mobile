@@ -75,9 +75,29 @@
       setTimeout(() => splash.remove(), 300);
     });
 
+    // Update bridge used by the app (lib/ui/app_update_web.dart): the app
+    // shows an "Update available" toast and calls apply() when tapped.
+    window.lastCardUpdate = (() => {
+      let waiting = null;
+      const listeners = [];
+      return {
+        onReady(cb) {
+          listeners.push(cb);
+          if (waiting) cb();
+        },
+        apply() {
+          if (!waiting) return location.reload();
+          window.__lcUpdating = true;
+          waiting.postMessage({ type: 'skip-waiting' });
+        },
+        _ready(worker) {
+          waiting = worker;
+          listeners.forEach((cb) => cb());
+        },
+      };
+    })();
+
     if ('serviceWorker' in navigator) {
-      // A worker left waiting by an earlier visit takes over now, before the
-      // game starts, so updates land on launch instead of mid-match.
       let reloading = false;
       navigator.serviceWorker.addEventListener('controllerchange', () => {
         if (!reloading && window.__lcUpdating) {
@@ -86,10 +106,34 @@
         }
       });
       navigator.serviceWorker.register('sw.js').then((reg) => {
+        // A worker left waiting by an earlier visit takes over now, before
+        // the game starts, so the update lands without a prompt.
         if (reg.waiting && navigator.serviceWorker.controller) {
           window.__lcUpdating = true;
           reg.waiting.postMessage({ type: 'skip-waiting' });
+          return;
         }
+        // A newer version found while the app is open waits for the player.
+        const track = (worker) => {
+          if (!worker) return;
+          const check = () => {
+            if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+              window.lastCardUpdate._ready(worker);
+            }
+          };
+          check();
+          worker.addEventListener('statechange', check);
+        };
+        track(reg.installing);
+        reg.addEventListener('updatefound', () => track(reg.installing));
+
+        // Installed apps are often resumed instead of reopened, which does
+        // not check for updates: check when shown again and every 30 min.
+        const update = () => reg.update().catch(() => {});
+        document.addEventListener('visibilitychange', () => {
+          if (document.visibilityState === 'visible') update();
+        });
+        setInterval(update, 30 * 60 * 1000);
       }).catch((e) => console.warn('Service worker registration failed', e));
 
       // First visit: hand the files already loaded to the worker so the

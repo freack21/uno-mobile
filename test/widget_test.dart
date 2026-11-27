@@ -8,6 +8,19 @@ import 'package:uno_mobile/ui/game_screen.dart';
 import 'package:uno_mobile/ui/guide_screen.dart';
 import 'package:uno_mobile/ui/mode_screen.dart';
 import 'package:uno_mobile/ui/theme.dart';
+import 'package:uno_mobile/ui/update_toast.dart';
+import 'package:uno_mobile/ui/app_update.dart';
+
+bool toastHidden(WidgetTester tester) => tester
+    .widget<IgnorePointer>(
+      find
+          .descendant(
+            of: find.byType(UpdateToast),
+            matching: find.byType(IgnorePointer),
+          )
+          .first,
+    )
+    .ignoring;
 
 Widget wrap(Widget child) => MaterialApp(theme: buildTheme(), home: child);
 
@@ -164,6 +177,40 @@ void main() {
     c.skipIntro();
     expect(c.intro, isNull);
     expect(c.visibleCards(0), 7);
+  });
+
+  testWidgets('update toast appears when a new version is ready', (
+    tester,
+  ) async {
+    await phone(tester);
+    addTearDown(() => updateReady.value = false);
+    var updates = 0;
+    await tester.pumpWidget(
+      wrap(Scaffold(body: UpdateToast(onUpdate: () => updates++))),
+    );
+    expect(toastHidden(tester), isTrue);
+
+    updateReady.value = true;
+    await tester.pumpAndSettle();
+    expect(find.text('Update available'), findsOneWidget);
+    expect(toastHidden(tester), isFalse);
+
+    await tester.tap(find.text('Update'));
+    await tester.pump();
+    expect(updates, 1);
+    // Shows progress instead of allowing a second tap.
+    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+  });
+
+  testWidgets('update toast can be postponed', (tester) async {
+    await phone(tester);
+    addTearDown(() => updateReady.value = false);
+    updateReady.value = true;
+    await tester.pumpWidget(wrap(const Scaffold(body: UpdateToast())));
+    await tester.pumpAndSettle();
+    await tester.tap(find.text('Later'));
+    await tester.pumpAndSettle();
+    expect(toastHidden(tester), isTrue);
   });
 
   testWidgets('basics guide renders', (tester) async {
