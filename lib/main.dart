@@ -19,6 +19,16 @@ class LastCardApp extends StatelessWidget {
       title: 'Last Card',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),
+      // On tablets and desktop browsers keep the phone-shaped layout centered.
+      builder: (context, child) => ColoredBox(
+        color: Palette.ink,
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 520),
+            child: child,
+          ),
+        ),
+      ),
       home: const HomeScreen(),
     );
   }

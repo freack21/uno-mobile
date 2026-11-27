@@ -21,6 +21,35 @@ Original name and artwork; classic "match the color or symbol" mechanics.
 | Challenge +4 | Bluff a Wild +4 or challenge it (4 for the bluffer, 6 for a wrong challenge). |
 | Custom | Any deck, format and combination of the rules above. |
 
+## Web app (PWA)
+
+The game ships as an installable Progressive Web App, so one web build runs on
+Android, iOS and desktop browsers:
+
+- Installable: "Install app" in Chrome/Edge, or Share → "Add to Home Screen" on iOS Safari.
+- Works offline after the first visit (`web/sw.js` caches the app shell and the renderer).
+- Updates are downloaded in the background and applied the next time the app is opened.
+- Portrait, phone-shaped layout; centered on tablets and desktop.
+
+```bash
+tool/build_web.sh              # build into build/web for a site served at /
+tool/build_web.sh /uno-mobile/ # build for a sub-path, e.g. GitHub Pages
+```
+
+Serve `build/web` over HTTPS (service workers need a secure context; `localhost`
+is fine for testing). `index.html`, `flutter_bootstrap.js` and `sw.js` should be
+served with `Cache-Control: no-cache`.
+
+### Deploying to GitHub Pages
+
+`.github/workflows/deploy-web.yml` analyzes, tests, builds and deploys on every
+push to `main` (or manually via "Run workflow"). One-time setup: repository
+Settings → Pages → Source: **GitHub Actions**. The app is then served at
+`https://<owner>.github.io/uno-mobile/`.
+
+App icons are rendered from `tool/icon.svg` with `node tool/render_icons.js`
+(requires Playwright).
+
 Every mode has an in-app guide (mode page and the `?` button during a game),
 plus a shared "How to play" basics page.
 

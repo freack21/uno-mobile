@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Source for the app icons. Render with: node tool/render_icons.js -->
+  <defs>
+    <filter id="s" x="-30%" y="-30%" width="160%" height="160%">
+      <feDropShadow dx="0" dy="10" stdDeviation="12" flood-color="#000" flood-opacity="0.45"/>
+    </filter>
+  </defs>
+  <rect id="bg" width="512" height="512" fill="#14161B"/>
+  <g id="cards" transform="translate(256 262)">
+    <g transform="rotate(-16) translate(-58 0)" filter="url(#s)">
+      <rect x="-104" y="-150" width="208" height="300" rx="28" fill="#FFFDF7"/>
+      <rect x="-92" y="-138" width="184" height="276" rx="20" fill="#F4B620"/>
+    </g>
+    <g transform="rotate(10) translate(40 0)" filter="url(#s)">
+      <rect x="-104" y="-150" width="208" height="300" rx="28" fill="#FFFDF7"/>
+      <rect x="-92" y="-138" width="184" height="276" rx="20" fill="#E5392C"/>
+      <text x="6" y="66" text-anchor="middle" font-family="Fredoka, Arial Rounded MT Bold, sans-serif"
+            font-weight="700" font-size="200" fill="#000" fill-opacity="0.35">1</text>
+      <text x="0" y="58" text-anchor="middle" font-family="Fredoka, Arial Rounded MT Bold, sans-serif"
+            font-weight="700" font-size="200" fill="#FFFFFF">1</text>
+    </g>
+  </g>
+</svg>
