@@ -1,0 +1,268 @@
+import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
+
+import 'package:last_card_server/rooms.dart';
+import 'package:last_card_server/server.dart';
+import 'package:shelf/shelf_io.dart' as io;
+import 'package:test/test.dart';
+
+/// A player connected over a real WebSocket.
+class Client {
+  Client._(this.socket) {
+    socket.listen((data) {
+      final msg = jsonDecode(data as String) as Map<String, dynamic>;
+      inbox.add(msg);
+      for (final w in List.of(_waiters)) {
+        if (w.$1(msg)) {
+          _waiters.remove(w);
+          w.$2.complete(msg);
+        }
+      }
+    });
+  }
+
+  static Future<Client> connect(int port) async =>
+      Client._(await WebSocket.connect('ws://127.0.0.1:$port/ws'));
+
+  final WebSocket socket;
+  final inbox = <Map<String, dynamic>>[];
+  final _waiters =
+      <
+        (bool Function(Map<String, dynamic>), Completer<Map<String, dynamic>>)
+      >[];
+
+  void send(Map<String, Object?> msg) => socket.add(jsonEncode(msg));
+
+  /// The next message matching [test] (or one already received after [from]).
+  Future<Map<String, dynamic>> next(
+    bool Function(Map<String, dynamic>) test, {
+    int from = 0,
+  }) {
+    for (final m in inbox.skip(from)) {
+      if (test(m)) return Future.value(m);
+    }
+    final c = Completer<Map<String, dynamic>>();
+    _waiters.add((test, c));
+    return c.future.timeout(const Duration(seconds: 20));
+  }
+
+  Future<Map<String, dynamic>> latestRoom() =>
+      next((m) => m['t'] == 'room', from: inbox.length);
+
+  Future<void> close() => socket.close();
+}
+
+bool isType(Map<String, dynamic> m, String t) => m['t'] == t;
+
+void main() {
+  late HttpServer server;
+  late Lobby lobby;
+  late int port;
+
+  setUp(() async {
+    lobby = Lobby(
+      config: const ServerConfig(pace: 0.0005, idleMs: 40, introMs: 0),
+    );
+    server = await io.serve(
+      createHandler(lobby),
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    port = server.port;
+  });
+
+  tearDown(() async {
+    lobby.close();
+    await server.close(force: true);
+  });
+
+  /// Host creates a room; [guests] join it. Returns (clients, room, pass).
+  Future<(List<Client>, String, String)> room(int guests) async {
+    final host = await Client.connect(port);
+    host.send({'t': 'create'});
+    final w = await host.next((m) => isType(m, 'welcome'));
+    final clients = [host];
+    for (var i = 0; i < guests; i++) {
+      final g = await Client.connect(port);
+      g.send({'t': 'join', 'room': w['room'], 'pass': w['pass']});
+      await g.next((m) => isType(m, 'welcome'));
+      clients.add(g);
+    }
+    return (clients, w['room'] as String, w['pass'] as String);
+  }
+
+  test('health check', () async {
+    final client = HttpClient();
+    final req = await client.get('127.0.0.1', port, '/healthz');
+    final res = await req.close();
+    expect(res.statusCode, 200);
+    expect(await res.transform(utf8.decoder).join(), 'ok\n');
+    client.close();
+  });
+
+  test('create gives a room id, password and a random unique name', () async {
+    final (cs, id, pass) = await room(1);
+    expect(id, matches(RegExp(r'^[A-Z2-9]{6}$')));
+    expect(pass, matches(RegExp(r'^\d{4}$')));
+    final view = await cs[1].next(
+      (m) => isType(m, 'room') && (m['members'] as List).length == 2,
+    );
+    final names = [for (final x in view['members'] as List) x['name']];
+    expect(names.toSet().length, 2);
+    expect(view['host'], (view['members'] as List).first['id']);
+    for (final c in cs) {
+      await c.close();
+    }
+  });
+
+  test('wrong password is refused', () async {
+    final (cs, id, _) = await room(0);
+    final g = await Client.connect(port);
+    g.send({'t': 'join', 'room': id, 'pass': '0000x'});
+    final e = await g.next((m) => isType(m, 'error'));
+    expect(e['msg'], contains('Wrong'));
+    await g.close();
+    await cs.first.close();
+  });
+
+  test('nicknames must be unique within the room', () async {
+    final (cs, _, _) = await room(1);
+    cs[0].send({'t': 'nick', 'name': 'Budi'});
+    await cs[1].next(
+      (m) =>
+          isType(m, 'room') &&
+          (m['members'] as List).any((x) => x['name'] == 'Budi'),
+    );
+    cs[1].send({'t': 'nick', 'name': 'Budi'});
+    final e = await cs[1].next((m) => isType(m, 'error'));
+    expect(e['msg'], contains('already taken'));
+    cs[1].send({'t': 'nick', 'name': 'budi'});
+    await cs[0].next(
+      (m) =>
+          isType(m, 'room') &&
+          (m['members'] as List).any((x) => x['name'] == 'budi'),
+    );
+    for (final c in cs) {
+      await c.close();
+    }
+  });
+
+  test('only the host sets up and starts', () async {
+    final (cs, _, _) = await room(1);
+    cs[1].send({'t': 'setup', 'mode': 'speed'});
+    expect(
+      (await cs[1].next((m) => isType(m, 'error')))['msg'],
+      contains('host'),
+    );
+    cs[1].send({'t': 'start'});
+    expect(
+      (await cs[1].next((m) => isType(m, 'error')))['msg'],
+      contains('host'),
+    );
+    cs[0].send({'t': 'setup', 'mode': 'teams'});
+    await cs[0].next((m) => isType(m, 'room') && m['setup']['mode'] == 'teams');
+    cs[0].send({'t': 'start'});
+    expect(
+      (await cs[0].next((m) => isType(m, 'error')))['msg'],
+      contains('at least 4'),
+    );
+    for (final c in cs) {
+      await c.close();
+    }
+  });
+
+  for (final (mode, bots) in [
+    ('classic', 1),
+    ('exact_score', 1),
+    ('hold_card', 2),
+  ]) {
+    test('$mode: a full match is played and scored', () async {
+      final (cs, _, _) = await room(1);
+      cs[0].send({'t': 'nick', 'name': 'Ana'});
+      cs[1].send({'t': 'nick', 'name': 'Budi'});
+      await cs[0].next((m) {
+        if (!isType(m, 'room')) return false;
+        final names = {for (final x in m['members'] as List) x['name']};
+        return names.containsAll(['Ana', 'Budi']);
+      });
+      cs[0].send({'t': 'setup', 'mode': mode, 'bots': bots, 'target': 20});
+      await cs[0].next((m) => isType(m, 'room') && m['setup']['mode'] == mode);
+      cs[0].send({'t': 'start'});
+
+      // Each player sees the match from their own seat.
+      final a = await cs[0].next((m) => isType(m, 'match'));
+      final b = await cs[1].next((m) => isType(m, 'match'));
+      expect((a['view']['players'] as List).first['name'], 'Ana');
+      expect((b['view']['players'] as List).first['name'], 'Budi');
+      expect((a['view']['players'] as List).length, 2 + bots);
+
+      // Nobody acts: idle turns are played for them until the end.
+      final done = await cs[0].next(
+        (m) => isType(m, 'room') && (m['history'] as List).isNotEmpty,
+      );
+      final ranks = (done['history'] as List).first['ranks'] as List;
+      expect(ranks.length, 2 + bots);
+      expect(ranks.first['place'], 1);
+      expect(ranks.first['points'], 10);
+      final total = [
+        for (final x in done['members'] as List) x['points'] as int,
+      ].fold(0, (s, x) => s + x);
+      final human = ranks
+          .where((r) => r['bot'] == false)
+          .fold<int>(0, (s, r) => s + (r['points'] as int));
+      expect(total, human);
+      expect(done['playing'], isFalse);
+      for (final c in cs) {
+        await c.close();
+      }
+    });
+  }
+
+  test('reconnecting with the token returns to the same seat', () async {
+    final (cs, id, pass) = await room(1);
+    final w = cs[1].inbox.firstWhere((m) => isType(m, 'welcome'));
+    final before = await cs[1].next((m) => isType(m, 'room'));
+    await cs[1].close();
+    await cs[0].next(
+      (m) =>
+          isType(m, 'room') &&
+          (m['members'] as List).any((x) => x['online'] == false),
+    );
+    final again = await Client.connect(port);
+    again.send({'t': 'join', 'room': id, 'pass': pass, 'token': w['token']});
+    final view = await again.next((m) => isType(m, 'room'));
+    expect(view['you'], before['you']);
+    expect((view['members'] as List).length, 2);
+    await again.close();
+    await cs[0].close();
+  });
+
+  test('leaving hands the host role on', () async {
+    final (cs, _, _) = await room(1);
+    final guestView = await cs[1].next((m) => isType(m, 'room'));
+    cs[0].send({'t': 'leave'});
+    await cs[0].next((m) => isType(m, 'left'));
+    final after = await cs[1].next(
+      (m) => isType(m, 'room') && (m['members'] as List).length == 1,
+    );
+    expect(after['host'], guestView['you']);
+    for (final c in cs) {
+      await c.close();
+    }
+  });
+
+  test('moves out of turn are rejected', () async {
+    final (cs, _, _) = await room(1);
+    cs[0].send({'t': 'setup', 'mode': 'classic'});
+    cs[0].send({'t': 'start'});
+    final a = await cs[0].next((m) => isType(m, 'match'));
+    final mine = (a['view']['current'] as int) == 0;
+    final idle = mine ? cs[1] : cs[0];
+    idle.send({'t': 'act', 'a': 'draw'});
+    await idle.next((m) => isType(m, 'rejected'));
+    for (final c in cs) {
+      await c.close();
+    }
+  });
+}

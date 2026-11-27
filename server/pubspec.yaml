@@ -1,0 +1,18 @@
+name: last_card_server
+description: WebSocket room server for Last Card online play.
+publish_to: 'none'
+version: 0.1.0
+
+environment:
+  sdk: ^3.8.0
+
+dependencies:
+  last_card_core:
+    path: ../packages/last_card_core
+  shelf: ^1.4.0
+  shelf_web_socket: ^3.0.0
+  web_socket_channel: ^3.0.0
+
+dev_dependencies:
+  lints: ^6.0.0
+  test: ^1.25.0
