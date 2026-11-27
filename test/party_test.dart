@@ -41,35 +41,23 @@ void main() {
       expect(g.phase, ScorePhase.over);
     });
 
-    test('a number past the target cannot be used', () {
+    test('a number past the target busts', () {
       final g = exact(2);
       g.players[0].score = 19;
       stack(g, n(2));
       g.draw(0);
       expect(g.canUse(0), isFalse);
       expect(() => g.use(0), throwsStateError);
-      g.discard(0);
+      g.bust(0);
       expect(g.players[0].score, 19);
       expect(g.current, 1);
     });
 
-    test('three discards in a row cost the next turn', () {
-      final g = exact(3);
-      for (var i = 0; i < 3; i++) {
-        g.current = 0;
-        g.phase = ScorePhase.draw;
-        stack(g, n(5));
-        g.draw(0);
-        final penalty = g.discard(0);
-        expect(penalty, i == 2);
-      }
-      // Seat 0 is now skipped once: from seat 2, play passes it.
-      g.current = 2;
-      stack(g, n(1));
-      g.draw(2);
-      g.use(2);
-      expect(g.current, 1);
-      expect(g.lastSkipped, [0]);
+    test('a usable card cannot be thrown away', () {
+      final g = exact(2);
+      stack(g, n(3));
+      g.draw(0);
+      expect(() => g.bust(0), throwsStateError);
     });
 
     test('wild picks a value within the target', () {
@@ -128,16 +116,16 @@ void main() {
             expect(++turns, lessThan(5000));
             final seat = g.current;
             g.draw(seat);
-            final move = decideExactScore(
-              g,
-              seat,
-              Difficulty.values[seat % 3],
-              rng,
-            );
-            if (move.use) {
-              g.use(seat, value: move.value, victim: move.victim);
+            if (g.canUse(seat)) {
+              final c = decideExactScore(
+                g,
+                seat,
+                Difficulty.values[seat % 3],
+                rng,
+              );
+              g.use(seat, value: c.value, victim: c.victim);
             } else {
-              g.discard(seat);
+              g.bust(seat);
             }
             for (final p in g.players) {
               expect(p.score, inInclusiveRange(0, target));

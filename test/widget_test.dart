@@ -255,18 +255,19 @@ void main() {
     var drew = 0;
     for (var i = 0; i < 80; i++) {
       await tester.pump(const Duration(milliseconds: 600));
-      if (find.text('Draw').evaluate().isNotEmpty) {
-        await tester.tap(find.text('Draw'));
+      if (find.text('Tap to draw').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Tap to draw'));
         drew++;
         continue;
       }
-      final use = find.textContaining('Use ');
-      final discard = find.textContaining('Discard');
-      if (use.evaluate().isNotEmpty) {
-        await tester.tap(use.first);
-      } else if (discard.evaluate().isNotEmpty) {
-        await tester.tap(discard.first);
-      }
+      // Wild values and +2 victims are the only choices.
+      final choice = find.byWidgetPredicate(
+        (w) =>
+            w.key is ValueKey<String> &&
+            RegExp(r'^(wild|victim)-')
+                .hasMatch((w.key! as ValueKey<String>).value),
+      );
+      if (choice.evaluate().isNotEmpty) await tester.tap(choice.first);
     }
     expect(drew, greaterThan(0));
     expect(tester.takeException(), isNull);

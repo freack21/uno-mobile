@@ -20,7 +20,7 @@ Original name and artwork; classic "match the color or symbol" mechanics.
 | Elimination | Each round the biggest hand is knocked out. |
 | Speed | 8-second turn clock; time out = draw 2. |
 | Challenge +4 | Bluff a Wild +4 or challenge it (4 for the bluffer, 6 for a wrong challenge). |
-| Exact Score (party) | Draw cards to fill your track to a target of 20-50 exactly; Wild, Skip, Reverse and +2 have special uses; three discards in a row cost a turn. |
+| Exact Score (party) | Draw cards to fill your track to a target of 20-50 exactly; a card that goes past it busts; Wild, Skip, Reverse and +2 have special uses. |
 | Hold Card (party) | Everyone secretly plays a number card; on a match, race to press HOLD — the slowest takes the box. |
 | Custom | Any deck, format and combination of the rules above. |
 

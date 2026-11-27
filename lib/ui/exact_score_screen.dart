@@ -36,8 +36,12 @@ class ExactScoreScreen extends StatefulWidget {
   State<ExactScoreScreen> createState() => _ExactScoreScreenState();
 }
 
+/// How far the drawn card's reveal has got.
+enum _Stage { tease, reveal, choose, bust }
+
 class _ExactScoreScreenState extends State<ExactScoreScreen> {
   static const me = 0;
+  static const tickMs = 110;
   final _rng = Random();
   late ExactScoreGame g;
   final _timers = <Timer>[];
@@ -45,7 +49,16 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
   TableBanner? _banner;
   int _bannerId = 0;
 
-  /// Last card played or discarded, shown on the table.
+  /// Reveal stage of the drawn card; null between draws.
+  _Stage? _stage;
+
+  /// Bumped per draw so card and track animations replay.
+  int _turnId = 0;
+
+  /// Points before the last scoring move, per seat: those ticks animate in.
+  final _fillFrom = <int, int>{};
+
+  /// Last card resolved, shown faded on the table.
   GameCard? _last;
 
   @override
@@ -92,8 +105,19 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
     );
     _banner = null;
     _last = null;
+    _stage = null;
+    _fillFrom.clear();
     playSfx(Sfx.shuffle);
-    _after(900, _nextTurn);
+    _after(1100, _nextTurn);
+  }
+
+  int _pace(int ms) {
+    final f = switch (widget.difficulty) {
+      Difficulty.easy => 1.15,
+      Difficulty.normal => 1.0,
+      Difficulty.hard => 0.9,
+    };
+    return (ms * f).round();
   }
 
   void _nextTurn() {
@@ -104,44 +128,71 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
       return;
     }
     final seat = g.current;
-    _after(_think(900), () {
-      g.draw(seat);
-      playSfx(Sfx.draw);
+    _after(_pace(1000 + _rng.nextInt(700)), () => _draw(seat));
+  }
+
+  /// Draws for [seat] and plays the reveal: tease, flip, resolve.
+  void _draw(int seat) {
+    if (g.current != seat || g.phase != ScorePhase.draw) return;
+    g.draw(seat);
+    _turnId++;
+    _stage = _Stage.tease;
+    playSfx(Sfx.draw);
+    setState(() {});
+    _after(1150, () {
+      _stage = _Stage.reveal;
+      playSfx(Sfx.flip);
       setState(() {});
-      _after(_think(1000), () {
-        final move = decideExactScore(g, seat, widget.difficulty, _rng);
-        if (move.use) {
-          _use(seat, value: move.value, victim: move.victim);
-        } else {
-          _discard(seat);
-        }
-      });
+      _after(750, () => _resolve(seat));
     });
   }
 
-  int _think(int base) {
-    final pace = switch (widget.difficulty) {
-      Difficulty.easy => 1.2,
-      Difficulty.normal => 1.0,
-      Difficulty.hard => 0.85,
-    };
-    return ((base + _rng.nextInt(600)) * pace).round();
-  }
-
-  void _draw() {
-    if (g.current != me || g.phase != ScorePhase.draw) return;
-    HapticFeedback.lightImpact();
-    g.draw(me);
-    playSfx(Sfx.draw);
-    setState(() {});
+  void _resolve(int seat) {
+    final f = g.drawnFace!;
+    final p = g.players[seat];
+    if (!g.canUse(seat)) {
+      _stage = _Stage.bust;
+      playSfx(Sfx.nope);
+      _say(
+        f.kind == CardKind.number ? 'BUST!' : 'WASTED',
+        f.kind == CardKind.number
+            ? '${p.name} needed ${g.remaining(seat)}, drew ${f.value}'
+            : 'Nobody has points to take yet',
+        color: Palette.brand,
+      );
+      setState(() {});
+      _after(1200, () {
+        _last = g.drawn;
+        g.bust(seat);
+        _stage = null;
+        _afterMove();
+      });
+      return;
+    }
+    final needsChoice =
+        f.kind == CardKind.wild ||
+        f.kind == CardKind.wildDraw ||
+        f.kind == CardKind.draw;
+    if (needsChoice && seat == me) {
+      setState(() => _stage = _Stage.choose);
+      return;
+    }
+    final choice = needsChoice
+        ? decideExactScore(g, seat, widget.difficulty, _rng)
+        : (value: null, victim: null);
+    _use(seat, value: choice.value, victim: choice.victim);
   }
 
   void _use(int seat, {int? value, int? victim}) {
     final f = g.drawnFace!;
     final card = g.drawn!;
-    final name = g.players[seat].name;
+    final p = g.players[seat];
+    final before = p.score;
+    final victimScore = victim == null ? 0 : g.players[victim].score;
     g.use(seat, value: value, victim: victim);
     _last = card;
+    _stage = null;
+    var wait = 900;
     switch (f.kind) {
       case CardKind.skip:
         playSfx(Sfx.skip);
@@ -151,31 +202,28 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
       case CardKind.draw:
         playSfx(Sfx.penalty);
         final v = g.players[victim!];
-        _say('−2', '$name hit ${v.isHuman ? 'you' : v.name}');
-      case CardKind.wild || CardKind.wildDraw:
-        playSfx(Sfx.wild);
-        _say('+$value', '$name used a Wild');
+        _fillFrom[victim] = v.score;
+        _say(
+          '−${victimScore - v.score}',
+          '${p.name} hit ${v.isHuman ? 'you' : v.name}',
+          color: Palette.brand,
+        );
       default:
-        playSfx(Sfx.card);
+        // Numbers and Wilds: cross the points off one by one.
+        final gained = p.score - before;
+        _fillFrom[seat] = before;
+        if (f.isWild) playSfx(Sfx.wild);
+        for (var i = 0; i < gained; i++) {
+          _after(tickMs * i + 120, () => playSfx(Sfx.tick));
+        }
+        _say(
+          '+$gained',
+          '${p.name} ${p.isHuman ? 'are' : 'is'} on ${p.score}/${g.target}',
+        );
+        wait = 700 + gained * tickMs;
     }
-    _afterMove();
-  }
-
-  void _discard(int seat) {
-    final card = g.drawn!;
-    final p = g.players[seat];
-    final penalty = g.discard(seat);
-    _last = card;
-    playSfx(Sfx.tick);
-    if (penalty) {
-      playSfx(Sfx.nope);
-      _say(
-        '3 DISCARDS',
-        '${p.name} ${p.isHuman ? 'lose' : 'loses'} the next turn',
-        color: Palette.brand,
-      );
-    }
-    _afterMove();
+    setState(() {});
+    _after(wait, _afterMove);
   }
 
   void _afterMove() {
@@ -193,7 +241,7 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
       );
     }
     setState(() {});
-    _after(skipped.isEmpty ? 500 : 1100, _nextTurn);
+    _after(skipped.isEmpty ? 500 : 1200, _nextTurn);
   }
 
   void _say(String title, String subtitle, {Color? color}) {
@@ -223,19 +271,19 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
   }
 
   void _resume() {
-    if (g.phase == ScorePhase.over || g.current == me) return;
-    // A bot holding a drawn card decides now; otherwise its turn restarts.
+    if (g.phase == ScorePhase.over) return;
     if (g.phase == ScorePhase.decide) {
-      final seat = g.current;
-      _after(600, () {
-        final move = decideExactScore(g, seat, widget.difficulty, _rng);
-        move.use
-            ? _use(seat, value: move.value, victim: move.victim)
-            : _discard(seat);
-      });
+      // Waiting for the human's choice needs nothing; anything else resolves.
+      if (_stage != _Stage.choose) _resolve(g.current);
     } else {
       _nextTurn();
     }
+  }
+
+  void _humanDraw() {
+    if (g.current != me || g.phase != ScorePhase.draw) return;
+    HapticFeedback.lightImpact();
+    _draw(me);
   }
 
   // ------------------------------------------------------------------- UI
@@ -246,7 +294,11 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
     return PartyScaffold(
       mode: widget.mode,
       subtitle: 'Target ${g.target} · ${widget.difficulty.label}',
-      accent: myTurn ? const Color(0xFF2475D6) : const Color(0xFF7A4AD0),
+      accent: _stage == _Stage.bust
+          ? Palette.brand
+          : myTurn
+          ? const Color(0xFF2475D6)
+          : const Color(0xFF7A4AD0),
       onMenu: _menu,
       child: Stack(
         children: [
@@ -304,7 +356,8 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
             borderRadius: BorderRadius.circular(4),
             child: TweenAnimationBuilder<double>(
               tween: Tween(end: p.score / g.target),
-              duration: const Duration(milliseconds: 500),
+              duration: const Duration(milliseconds: 700),
+              curve: Curves.easeOutCubic,
               builder: (context, v, _) => LinearProgressIndicator(
                 value: v,
                 minHeight: 6,
@@ -319,105 +372,103 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
           '${p.score}/${g.target}',
           style: font(12, weight: 650, color: Palette.text),
         ),
-        _Dots(count: p.discards),
       ],
     );
   }
 
   Widget _table() {
-    final drawn = g.drawn;
     final canDraw = g.current == me && g.phase == ScorePhase.draw;
+    final drawn = g.drawn;
     return Stack(
       alignment: Alignment.center,
       children: [
-        Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
-              decoration: BoxDecoration(
-                color: Palette.surface.withValues(alpha: 0.85),
-                borderRadius: BorderRadius.circular(20),
-                border: Border.all(color: Palette.line),
-              ),
-              child: Text(
-                'TARGET ${g.target}',
-                style: font(16, weight: 700).copyWith(letterSpacing: 1),
-              ),
-            ),
-            const SizedBox(height: 18),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                GestureDetector(
-                  onTap: _draw,
-                  child: Column(
-                    children: [
-                      PlayingCard(
-                        width: 80,
-                        glow: canDraw
-                            ? Colors.white.withValues(alpha: 0.55)
-                            : null,
-                      ),
-                      const SizedBox(height: 8),
-                      Text(
-                        canDraw ? 'Draw' : '${g.drawPile.length} left',
-                        style: font(
-                          14,
-                          weight: 650,
-                          color: canDraw ? Palette.text : Palette.muted,
-                        ),
-                      ),
-                    ],
-                  ),
+        // Shrinks when the choice panel below takes room.
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 16,
+                  vertical: 6,
                 ),
-                const SizedBox(width: 34),
-                Column(
-                  children: [
-                    AnimatedSwitcher(
-                      duration: const Duration(milliseconds: 300),
-                      transitionBuilder: (child, anim) => ScaleTransition(
-                        scale: Tween(begin: 0.7, end: 1.0).animate(
-                          CurvedAnimation(
-                            parent: anim,
-                            curve: Curves.easeOutBack,
+                decoration: BoxDecoration(
+                  color: Palette.surface.withValues(alpha: 0.85),
+                  borderRadius: BorderRadius.circular(20),
+                  border: Border.all(color: Palette.line),
+                ),
+                child: Text(
+                  'TARGET ${g.target}',
+                  style: font(16, weight: 700).copyWith(letterSpacing: 1),
+                ),
+              ),
+              const SizedBox(height: 18),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  GestureDetector(
+                    onTap: _humanDraw,
+                    child: Column(
+                      children: [
+                        _Glow(
+                          active: canDraw,
+                          child: const PlayingCard(width: 80),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          canDraw ? 'Tap to draw' : '${g.drawPile.length} left',
+                          style: font(
+                            14,
+                            weight: 650,
+                            color: canDraw ? Palette.text : Palette.muted,
                           ),
                         ),
-                        child: FadeTransition(opacity: anim, child: child),
-                      ),
-                      child: drawn != null
-                          ? PlayingCard(
-                              key: ValueKey('drawn-${drawn.id}'),
-                              width: 80,
-                              face: drawn.light,
-                              glow: const Color(0xFFF4B620),
-                            )
-                          : _last != null
-                          ? Opacity(
-                              key: ValueKey('last-${_last!.id}'),
-                              opacity: 0.55,
-                              child: PlayingCard(width: 80, face: _last!.light),
-                            )
-                          : SizedBox(
-                              key: const ValueKey('empty'),
-                              width: 80,
-                              height: 80 * cardAspect,
-                            ),
+                      ],
                     ),
-                    const SizedBox(height: 8),
-                    Text(
-                      drawn != null
-                          ? (g.current == me
-                                ? 'Your card'
-                                : '${g.players[g.current].name} drew')
-                          : 'Last card',
-                      style: font(14, weight: 650, color: Palette.muted),
+                  ),
+                  const SizedBox(width: 30),
+                  SizedBox(
+                    width: 110,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        SizedBox(
+                          height: 92 * cardAspect,
+                          child: Center(
+                            child: drawn != null && _stage != null
+                                ? _Spotlight(
+                                    key: ValueKey(_turnId),
+                                    face: drawn.light,
+                                    stage: _stage!,
+                                  )
+                                : _last != null
+                                ? Opacity(
+                                    opacity: 0.4,
+                                    child: PlayingCard(
+                                      width: 80,
+                                      face: _last!.light,
+                                    ),
+                                  )
+                                : const SizedBox(),
+                          ),
+                        ),
+                        const SizedBox(height: 8),
+                        Text(
+                          drawn != null
+                              ? (g.current == me
+                                    ? 'Your card'
+                                    : '${g.players[g.current].name} drew')
+                              : 'Last card',
+                          style: font(14, weight: 650, color: Palette.muted),
+                        ),
+                      ],
                     ),
-                  ],
-                ),
-              ],
-            ),
-          ],
+                  ),
+                ],
+              ),
+            ],
+          ),
         ),
         Align(
           alignment: const Alignment(0, -0.98),
@@ -427,60 +478,34 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
     );
   }
 
-  /// The decision for the human's drawn card.
+  /// Status line, plus the Wild / +2 choice when it is the human's card.
   Widget _panel() {
-    final myDecision = g.current == me && g.phase == ScorePhase.decide;
     final String text;
-    final actions = <Widget>[];
+    final choices = <Widget>[];
+    final p = g.players[g.current];
     if (g.phase == ScorePhase.over) {
       text = '';
-    } else if (g.current != me) {
-      text = "${g.players[g.current].name}'s turn…";
-    } else if (!myDecision) {
-      text = 'Your turn — draw a card';
-    } else {
+    } else if (_stage == _Stage.choose) {
       final f = g.drawnFace!;
-      final need = g.remaining(me);
-      final usable = g.canUse(me);
-      switch (f.kind) {
-        case CardKind.number:
-          text = usable
-              ? 'Use +${f.value}? You need $need.'
-              : 'Too high — you need $need.';
-          if (usable) {
-            actions.add(_action('Use +${f.value}', () => _use(me)));
-          }
-        case CardKind.wild || CardKind.wildDraw:
-          text = 'Wild: add any value up to ${min(9, need)}';
-          for (final v in g.wildValues(me)) {
-            actions.add(_chip('+$v', () => _use(me, value: v)));
-          }
-        case CardKind.draw:
-          if (usable) {
-            text = 'Take 2 points from…';
-            for (final s in g.victims(me)) {
-              actions.add(_chip(g.players[s].name, () => _use(me, victim: s)));
-            }
-          } else {
-            text = 'Nobody has points to take yet.';
-          }
-        case CardKind.skip:
-          text = 'Skip the next player?';
-          actions.add(_action('Use Skip', () => _use(me)));
-        default:
-          text = g.players.length == 2
-              ? 'Reverse works like Skip with two players.'
-              : 'Reverse the direction?';
-          actions.add(_action('Use Reverse', () => _use(me)));
+      if (f.kind == CardKind.draw) {
+        text = 'Take 2 points from…';
+        for (final s in g.victims(me)) {
+          choices.add(
+            _chip('victim-$s', g.players[s].name, () => _use(me, victim: s)),
+          );
+        }
+      } else {
+        text = 'Wild! Add any value up to ${min(9, g.remaining(me))}';
+        for (final v in g.wildValues(me)) {
+          choices.add(_chip('wild-$v', '+$v', () => _use(me, value: v)));
+        }
       }
-      final left = ExactScoreGame.maxDiscards - g.players[me].discards;
-      actions.add(
-        _action(
-          left == 1 ? 'Discard (lose a turn)' : 'Discard',
-          () => _discard(me),
-          primary: false,
-        ),
-      );
+    } else if (_stage != null) {
+      text = p.isHuman ? 'Drawing…' : '${p.name} draws…';
+    } else if (g.current == me) {
+      text = 'Your turn — tap the deck to draw';
+    } else {
+      text = "${p.name}'s turn…";
     }
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -495,47 +520,25 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
               color: g.current == me ? Palette.text : Palette.muted,
             ),
           ),
-          const SizedBox(height: 8),
-          SizedBox(
-            height: 48,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                for (final a in actions)
-                  Padding(padding: const EdgeInsets.only(right: 8), child: a),
-              ],
-            ),
-          ),
+          if (choices.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Wrap(spacing: 8, runSpacing: 8, children: choices),
+          ],
         ],
       ),
     );
   }
 
-  Widget _action(String label, VoidCallback onTap, {bool primary = true}) {
+  Widget _chip(String key, String label, VoidCallback onTap) {
     return FilledButton(
-      onPressed: () {
-        HapticFeedback.lightImpact();
-        onTap();
-      },
-      style: FilledButton.styleFrom(
-        backgroundColor: primary ? Palette.brand : Palette.surfaceHigh,
-        minimumSize: const Size(0, 46),
-        padding: const EdgeInsets.symmetric(horizontal: 18),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
-      ),
-      child: Text(label, style: font(15, weight: 650, color: Colors.white)),
-    );
-  }
-
-  Widget _chip(String label, VoidCallback onTap) {
-    return FilledButton(
+      key: ValueKey(key),
       onPressed: () {
         HapticFeedback.lightImpact();
         onTap();
       },
       style: FilledButton.styleFrom(
         backgroundColor: const Color(0xFF2475D6),
-        minimumSize: const Size(52, 46),
+        minimumSize: const Size(52, 44),
         padding: const EdgeInsets.symmetric(horizontal: 14),
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(14)),
       ),
@@ -546,7 +549,8 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
   /// Your track: one line per point, crossed off as you score.
   Widget _track() {
     final p = g.players[me];
-    final perRow = 10;
+    const perRow = 10;
+    final from = _fillFrom[me] ?? p.score;
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -570,8 +574,6 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
                   style: font(15, weight: 650),
                 ),
               ),
-              const SizedBox(width: 8),
-              _Dots(count: p.discards),
               const Spacer(),
               Text('${p.score} / ${g.target}', style: font(15, weight: 700)),
               const SizedBox(width: 8),
@@ -589,9 +591,16 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
                 children: [
                   for (var i = row * perRow; i < (row + 1) * perRow; i++)
                     Expanded(
-                      child: i < g.target
-                          ? _Tick(filled: i < p.score)
-                          : const SizedBox(),
+                      child: i >= g.target
+                          ? const SizedBox()
+                          : i >= from && i < p.score
+                          // Newly scored: cross off one after another.
+                          ? _Tick(
+                              key: ValueKey('$_turnId-$i'),
+                              filled: true,
+                              delay: (i - from) * tickMs + 120,
+                            )
+                          : _Tick(filled: i < p.score),
                     ),
                 ],
               ),
@@ -624,51 +633,186 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
   }
 }
 
-/// One point on the track: a line that gets crossed off.
-class _Tick extends StatelessWidget {
-  const _Tick({required this.filled});
+/// The drawn card: slides out of the deck face down, wobbles with suspense,
+/// then turns over. A bust shakes it in red.
+class _Spotlight extends StatefulWidget {
+  const _Spotlight({super.key, required this.face, required this.stage});
 
-  final bool filled;
+  final CardFace face;
+  final _Stage stage;
+
+  @override
+  State<_Spotlight> createState() => _SpotlightState();
+}
+
+class _SpotlightState extends State<_Spotlight> with TickerProviderStateMixin {
+  late final AnimationController _enter = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 420),
+  )..forward();
+  late final AnimationController _wobble = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 260),
+  )..repeat(reverse: true);
+  late final AnimationController _flip = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 420),
+  );
+  late final AnimationController _shake = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 500),
+  );
+
+  @override
+  void didUpdateWidget(_Spotlight old) {
+    super.didUpdateWidget(old);
+    if (widget.stage != _Stage.tease && !_flip.isCompleted) {
+      _wobble.stop();
+      _flip.forward();
+    }
+    if (widget.stage == _Stage.bust && old.stage != _Stage.bust) {
+      _shake.forward(from: 0);
+    }
+  }
+
+  @override
+  void dispose() {
+    _enter.dispose();
+    _wobble.dispose();
+    _flip.dispose();
+    _shake.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      height: 16,
-      margin: const EdgeInsets.symmetric(horizontal: 2),
-      decoration: BoxDecoration(
-        color: filled ? Palette.brand : Palette.surfaceHigh,
-        borderRadius: BorderRadius.circular(4),
-      ),
-      child: filled
-          ? const Icon(Icons.close_rounded, size: 13, color: Colors.white)
-          : null,
+    return AnimatedBuilder(
+      animation: Listenable.merge([_enter, _wobble, _flip, _shake]),
+      builder: (context, _) {
+        final enter = Curves.easeOutBack.transform(_enter.value);
+        final teasing = widget.stage == _Stage.tease;
+        final wobble = teasing ? (_wobble.value - 0.5) * 0.12 : 0.0;
+        final flip = _flip.value;
+        final faceUp = flip >= 0.5;
+        final squash = max(0.06, (cos(flip * pi)).abs());
+        final shake = sin(_shake.value * pi * 6) * 8 * (1 - _shake.value);
+        final bust = widget.stage == _Stage.bust;
+        return Transform.translate(
+          // Out of the deck on the left, into the spotlight.
+          offset: Offset(-110 * (1 - enter) + shake, -10 * sin(enter * pi)),
+          child: Transform.rotate(
+            angle: wobble + (1 - enter) * -0.4,
+            child: Transform.scale(
+              scale: 0.85 + 0.25 * enter + (teasing ? _wobble.value * 0.03 : 0),
+              child: Transform(
+                alignment: Alignment.center,
+                transform: Matrix4.diagonal3Values(squash, 1, 1),
+                child: PlayingCard(
+                  width: 80,
+                  face: faceUp ? widget.face : null,
+                  glow: bust
+                      ? Palette.brand
+                      : faceUp
+                      ? const Color(0xFFF4B620)
+                      : Colors.white.withValues(alpha: 0.35),
+                  dimmed: bust && _shake.isCompleted,
+                ),
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
 
-/// Discards in a row, out of three.
-class _Dots extends StatelessWidget {
-  const _Dots({required this.count});
+/// One point on the track: a line that gets crossed off.
+class _Tick extends StatelessWidget {
+  const _Tick({super.key, required this.filled, this.delay = 0});
 
-  final int count;
+  final bool filled;
+
+  /// Milliseconds before this tick crosses off (0: already crossed).
+  final int delay;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        for (var i = 0; i < ExactScoreGame.maxDiscards; i++)
-          Container(
-            width: 6,
-            height: 6,
-            margin: const EdgeInsets.symmetric(horizontal: 1.5, vertical: 3),
-            decoration: BoxDecoration(
-              shape: BoxShape.circle,
-              color: i < count ? Palette.brand : Palette.surfaceHigh,
-            ),
+    final total = delay + 220;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: delay == 0 ? 1 : 0, end: 1),
+      duration: Duration(milliseconds: delay == 0 ? 1 : total),
+      curve: Interval(delay / total, 1, curve: Curves.easeOutBack),
+      builder: (context, v, _) {
+        final on = filled && v > 0;
+        return Container(
+          height: 16,
+          margin: const EdgeInsets.symmetric(horizontal: 2),
+          decoration: BoxDecoration(
+            color: on
+                ? Color.lerp(Palette.surfaceHigh, Palette.brand, v.clamp(0, 1))
+                : Palette.surfaceHigh,
+            borderRadius: BorderRadius.circular(4),
           ),
-      ],
+          child: on
+              ? Transform.scale(
+                  scale: 0.6 + 0.4 * v,
+                  child: const Icon(
+                    Icons.close_rounded,
+                    size: 13,
+                    color: Colors.white,
+                  ),
+                )
+              : null,
+        );
+      },
+    );
+  }
+}
+
+/// Soft pulsing glow around the deck while it waits for a tap.
+class _Glow extends StatefulWidget {
+  const _Glow({required this.active, required this.child});
+
+  final bool active;
+  final Widget child;
+
+  @override
+  State<_Glow> createState() => _GlowState();
+}
+
+class _GlowState extends State<_Glow> with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 800),
+  )..repeat(reverse: true);
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    if (!widget.active) return widget.child;
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, child) => Transform.scale(
+        scale: 1 + _c.value * 0.04,
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.white.withValues(alpha: 0.15 + 0.25 * _c.value),
+                blurRadius: 18 + 10 * _c.value,
+              ),
+            ],
+          ),
+          child: child,
+        ),
+      ),
+      child: widget.child,
     );
   }
 }

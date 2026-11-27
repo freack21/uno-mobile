@@ -521,9 +521,9 @@ const gameModes = <GameMode>[
       GuideSection(
         'Your turn',
         [
-          'Tap the deck to draw one card, then Use it or Discard it.',
-          'A number adds its value to your track, but never past the target.',
-          'Three discards in a row and you lose your next turn, so don\'t wait forever for the perfect card.',
+          'Tap the deck to draw one card. There is no discarding: the card counts as it comes.',
+          'A number is crossed off your track if it fits.',
+          'Too high? BUST — the card is lost and your turn ends.',
         ],
         cards: [
           CardFace(_green, CardKind.number, value: 7),
@@ -536,7 +536,7 @@ const gameModes = <GameMode>[
           'Wild — add any value from 1 to 9 that still fits.',
           'Skip — the next player loses their turn.',
           'Reverse — play changes direction (with two players it works like Skip).',
-          '+2 — take 2 points from an opponent of your choice.',
+          '+2 — take 2 points from an opponent of your choice (wasted if nobody has points yet).',
         ],
         cards: [
           CardFace(_wild, CardKind.wild),

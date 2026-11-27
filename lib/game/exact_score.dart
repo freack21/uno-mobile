@@ -5,10 +5,11 @@ import 'rules.dart';
 
 /// Exact Score: fill your track to the target exactly.
 ///
-/// Each turn draw one card, then use it or discard it. Numbers add their
-/// value but never past the target; a Wild adds any 1-9 you choose; Skip
-/// skips the next player; Reverse turns the direction; +2 takes two points
-/// from an opponent. Three discards in a row cost your next turn.
+/// Each turn draw one card; there is no discarding. A number is crossed off
+/// your track if it fits, otherwise it busts and is lost. A Wild adds any
+/// 1-9 you choose; Skip skips the next player; Reverse turns the direction;
+/// +2 takes two points from an opponent of your choice (lost if nobody has
+/// points yet).
 enum ScorePhase { draw, decide, over }
 
 class ScorePlayer {
@@ -18,9 +19,6 @@ class ScorePlayer {
   final String name;
   final bool isHuman;
   int score = 0;
-
-  /// Discards in a row; at [ExactScoreGame.maxDiscards] the next turn is lost.
-  int discards = 0;
   bool skipNext = false;
 }
 
@@ -33,8 +31,6 @@ class ExactScoreGame {
     current = this.rng.nextInt(players.length);
   }
 
-  static const maxDiscards = 3;
-
   final List<ScorePlayer> players;
   final int target;
   final Random rng;
@@ -45,7 +41,7 @@ class ExactScoreGame {
   int direction = 1;
   ScorePhase phase = ScorePhase.draw;
 
-  /// Card drawn this turn, waiting to be used or discarded.
+  /// Card drawn this turn, waiting to be used (or busting).
   GameCard? drawn;
   int? winner;
 
@@ -125,23 +121,14 @@ class ExactScoreGame {
       default:
         break;
     }
-    p.discards = 0;
     _finish(seat);
   }
 
-  /// Discards the drawn card. The third discard in a row costs a turn.
-  /// Returns true if that penalty was triggered.
-  bool discard(int seat) {
+  /// The drawn card cannot be used (too high, or no +2 target): it is lost.
+  void bust(int seat) {
     _require(seat, ScorePhase.decide);
-    final p = players[seat];
-    p.discards++;
-    final penalty = p.discards >= maxDiscards;
-    if (penalty) {
-      p.discards = 0;
-      p.skipNext = true;
-    }
+    if (canUse(seat)) throw StateError('This card can be used');
     _finish(seat);
-    return penalty;
   }
 
   void _finish(int seat) {
@@ -170,43 +157,32 @@ class ExactScoreGame {
   }
 }
 
-class ScoreMove {
-  const ScoreMove.use({this.value, this.victim}) : use = true;
-  const ScoreMove.discard() : use = false, value = null, victim = null;
-
-  final bool use;
-  final int? value;
-  final int? victim;
-}
-
-/// Bot choice for the drawn card.
-ScoreMove decideExactScore(
+/// Bot choice for its drawn card: the value for a Wild, the victim for a
+/// +2 (other cards need no choice).
+({int? value, int? victim}) decideExactScore(
   ExactScoreGame g,
   int seat,
   Difficulty difficulty,
   Random rng,
 ) {
-  if (!g.canUse(seat)) return const ScoreMove.discard();
   final f = g.drawnFace!;
   final easy = difficulty == Difficulty.easy;
   switch (f.kind) {
     case CardKind.wild || CardKind.wildDraw:
       final values = g.wildValues(seat);
-      return ScoreMove.use(
+      return (
         value: easy ? values[rng.nextInt(values.length)] : values.last,
+        victim: null,
       );
     case CardKind.draw:
       // Hit whoever is closest to winning.
       final victims = g.victims(seat)
         ..sort((a, b) => g.remaining(a).compareTo(g.remaining(b)));
-      return ScoreMove.use(
+      return (
+        value: null,
         victim: easy ? victims[rng.nextInt(victims.length)] : victims.first,
       );
-    case CardKind.number:
-      // Beginners sometimes hold out for a "better" card.
-      if (easy && rng.nextDouble() < 0.12) return const ScoreMove.discard();
-      return const ScoreMove.use();
     default:
-      return const ScoreMove.use();
+      return (value: null, victim: null);
   }
 }
