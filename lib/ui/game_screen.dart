@@ -28,9 +28,10 @@ class GameScreen extends StatefulWidget {
   const GameScreen({
     super.key,
     required this.mode,
-    required this.rules,
-    required this.players,
-    required this.difficulty,
+    this.rules = const RuleSet(),
+    this.players = 4,
+    this.difficulty = Difficulty.normal,
+    this.controller,
   });
 
   final GameMode mode;
@@ -38,17 +39,22 @@ class GameScreen extends StatefulWidget {
   final int players;
   final Difficulty difficulty;
 
+  /// An online match controller; null plays offline against bots.
+  final GameController? controller;
+
   @override
   State<GameScreen> createState() => _GameScreenState();
 }
 
 class _GameScreenState extends State<GameScreen> {
-  late final GameController c = GameController(
-    mode: widget.mode,
-    rules: widget.rules,
-    playerCount: widget.players,
-    difficulty: widget.difficulty,
-  );
+  late final GameController c =
+      widget.controller ??
+      GameController(
+        mode: widget.mode,
+        rules: widget.rules,
+        playerCount: widget.players,
+        difficulty: widget.difficulty,
+      );
 
   String? _hint;
   Timer? _hintTimer;
@@ -61,7 +67,7 @@ class _GameScreenState extends State<GameScreen> {
   final _pileKey = GlobalKey();
   final _handKey = GlobalKey();
   late final _seatKeys = {
-    for (var s = 1; s < widget.players; s++) s: GlobalKey(),
+    for (var s = 1; s < c.playerCount; s++) s: GlobalKey(),
   };
   final _cardKeys = <int, GlobalKey>{};
   GlobalKey _cardKey(int id) => _cardKeys.putIfAbsent(id, GlobalKey.new);
@@ -70,7 +76,7 @@ class _GameScreenState extends State<GameScreen> {
   final _flights = <_Flight>[];
   final _inFlight = <int>{};
   var _flightId = 0;
-  Game? _watched;
+  int? _watched;
   var _seenEvent = 0;
   var _seenDealt = 0;
 
@@ -85,15 +91,16 @@ class _GameScreenState extends State<GameScreen> {
   void dispose() {
     c.removeListener(_onGameChanged);
     _hintTimer?.cancel();
-    c.dispose();
+    // An online controller belongs to the match route that created it.
+    if (widget.controller == null) c.dispose();
     super.dispose();
   }
 
   /// Turns new game events into card flights. Runs right after the change,
   /// before the rebuild, so played cards are still laid out in the hand.
   void _onGameChanged() {
-    if (!identical(_watched, g)) {
-      _watched = g;
+    if (_watched != c.gameId) {
+      _watched = c.gameId;
       _seenEvent = g.events.isEmpty ? 0 : g.events.last.id;
       _seenDealt = 0;
       _flights.clear();
@@ -437,17 +444,19 @@ class _GameScreenState extends State<GameScreen> {
                 icon: const Icon(Icons.menu_book_rounded),
                 label: Text('How to play ${widget.mode.name}'),
               ),
-              const SizedBox(height: 10),
-              OutlinedButton.icon(
-                onPressed: () => Navigator.pop(context, 'restart'),
-                icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Restart match'),
-              ),
+              if (!c.online) ...[
+                const SizedBox(height: 10),
+                OutlinedButton.icon(
+                  onPressed: () => Navigator.pop(context, 'restart'),
+                  icon: const Icon(Icons.refresh_rounded),
+                  label: const Text('Restart match'),
+                ),
+              ],
               const SizedBox(height: 10),
               OutlinedButton.icon(
                 onPressed: () => Navigator.pop(context, 'quit'),
                 icon: const Icon(Icons.logout_rounded),
-                label: const Text('Quit to menu'),
+                label: Text(c.online ? 'Back to lobby' : 'Quit to menu'),
               ),
             ],
           ),
@@ -552,7 +561,7 @@ class _GameScreenState extends State<GameScreen> {
                       Positioned.fill(
                         child: GestureDetector(
                           behavior: HitTestBehavior.opaque,
-                          onTap: c.skipIntro,
+                          onTap: () => c.skipIntro(user: true),
                         ),
                       ),
                       if (c.intro == IntroStep.order)
@@ -592,16 +601,16 @@ class _GameScreenState extends State<GameScreen> {
 
   String _subtitle() {
     final parts = <String>[];
-    if (widget.rules.format != MatchFormat.single) {
+    if (c.rules.format != MatchFormat.single) {
       parts.add('Round ${g.round}');
     }
-    if (widget.rules.format == MatchFormat.points) {
-      parts.add('to ${widget.rules.targetScore}');
+    if (c.rules.format == MatchFormat.points) {
+      parts.add('to ${c.rules.targetScore}');
     }
-    if (widget.rules.deck == DeckType.flipside) {
+    if (c.rules.deck == DeckType.flipside) {
       parts.add(g.side == Side.light ? 'Light side' : 'Dark side');
     }
-    parts.add(widget.difficulty.label);
+    parts.add(c.online ? 'Online' : c.difficulty.label);
     return parts.join(' · ');
   }
 }
@@ -1523,11 +1532,13 @@ class _StatusBar extends StatelessWidget {
     final g = c.game;
     final dealer = g.players[g.dealer];
     final dealerName = dealer.isHuman ? 'You' : dealer.name;
+    // Online, everyone watches the same opening; it cannot be skipped.
+    final skip = c.online ? '' : ' · tap to skip';
     switch (c.intro) {
       case IntroStep.shuffle:
-        return '$dealerName ${dealer.isHuman ? 'shuffle' : 'shuffles'} the deck… · tap to skip';
+        return '$dealerName ${dealer.isHuman ? 'shuffle' : 'shuffles'} the deck…$skip';
       case IntroStep.deal:
-        return '$dealerName ${dealer.isHuman ? 'deal' : 'deals'} ${g.rules.handSize} cards each… · tap to skip';
+        return '$dealerName ${dealer.isHuman ? 'deal' : 'deals'} ${g.rules.handSize} cards each…$skip';
       case IntroStep.flip:
         return 'First card: ${g.topFace.label}';
       case IntroStep.order:
@@ -2050,21 +2061,36 @@ class _ResultsState extends State<_Results> {
                   const SizedBox(height: 18),
                   for (final p in rows) _ResultRow(player: p, game: g),
                   const SizedBox(height: 18),
-                  if (!matchOver)
-                    FilledButton(
-                      onPressed: c.nextRound,
-                      child: const Text('Next round'),
-                    )
-                  else
-                    FilledButton(
-                      onPressed: c.restart,
-                      child: const Text('Play again'),
+                  if (c.online) ...[
+                    // Online the server moves on; the lobby starts matches.
+                    if (!matchOver)
+                      Text(
+                        'Next round starts in a moment…',
+                        textAlign: TextAlign.center,
+                        style: font(14, weight: 600, color: Palette.muted),
+                      )
+                    else
+                      FilledButton(
+                        onPressed: widget.onMenu,
+                        child: const Text('Back to lobby'),
+                      ),
+                  ] else ...[
+                    if (!matchOver)
+                      FilledButton(
+                        onPressed: c.nextRound,
+                        child: const Text('Next round'),
+                      )
+                    else
+                      FilledButton(
+                        onPressed: c.restart,
+                        child: const Text('Play again'),
+                      ),
+                    const SizedBox(height: 10),
+                    OutlinedButton(
+                      onPressed: widget.onMenu,
+                      child: const Text('Menu'),
                     ),
-                  const SizedBox(height: 10),
-                  OutlinedButton(
-                    onPressed: widget.onMenu,
-                    child: const Text('Menu'),
-                  ),
+                  ],
                 ],
               ),
             ),

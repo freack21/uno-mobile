@@ -4,6 +4,7 @@ import 'package:last_card_core/cards.dart';
 import 'package:last_card_core/modes.dart';
 import 'package:last_card_core/rules.dart';
 
+import '../online/online_screens.dart';
 import 'game_screen.dart';
 import 'guide_screen.dart';
 import 'mode_screen.dart';
@@ -11,8 +12,30 @@ import 'playing_card.dart';
 import 'sfx.dart';
 import 'theme.dart';
 
-class HomeScreen extends StatelessWidget {
-  const HomeScreen({super.key});
+class HomeScreen extends StatefulWidget {
+  const HomeScreen({super.key, this.joinCode});
+
+  /// "ROOM-PASSWORD" from an invite link: opens the online screen right away.
+  final String? joinCode;
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    final code = widget.joinCode;
+    if (code != null) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => OnlineHomeScreen(joinCode: code)),
+        );
+      });
+    }
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -109,6 +132,18 @@ class _Hero extends StatelessWidget {
           ),
           icon: const Icon(Icons.play_arrow_rounded),
           label: const Text('Quick play'),
+        ),
+        const SizedBox(height: 10),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFF2475D6),
+          ),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const OnlineHomeScreen()),
+          ),
+          icon: const Icon(Icons.groups_rounded),
+          label: const Text('Play online with friends'),
         ),
         const SizedBox(height: 10),
         OutlinedButton.icon(

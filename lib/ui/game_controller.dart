@@ -7,6 +7,7 @@ import 'package:last_card_core/bot.dart';
 import 'package:last_card_core/cards.dart';
 import 'package:last_card_core/game.dart';
 import 'package:last_card_core/modes.dart';
+import 'package:last_card_core/protocol.dart';
 import 'package:last_card_core/rules.dart';
 
 import 'sfx.dart';
@@ -35,11 +36,35 @@ class GameController extends ChangeNotifier {
     required this.rules,
     required this.playerCount,
     required this.difficulty,
-  }) {
+  }) : send = null {
     _newGame();
   }
 
+  /// A match played on the server: moves go out through [send], and the
+  /// state comes back through [applyRemote].
+  GameController.online({
+    required this.mode,
+    required Map<String, dynamic> match,
+    required void Function(Map<String, Object?> action) this.send,
+  }) : rules = rulesFromJson(
+         (match['view'] as Map<String, dynamic>)['rules']
+             as Map<String, dynamic>,
+       ),
+       playerCount = ((match['view'] as Map)['players'] as List).length,
+       difficulty = Difficulty.normal {
+    applyRemote(match);
+  }
+
   static const human = 0;
+
+  /// Sends a move to the server; null when playing offline.
+  final void Function(Map<String, Object?> action)? send;
+  bool get online => send != null;
+
+  /// Changes whenever a different game is shown, so views can reset.
+  int gameId = 0;
+  int? _remoteMatch;
+  bool _hasGame = false;
 
   final GameMode mode;
   final RuleSet rules;
@@ -118,24 +143,57 @@ class GameController extends ChangeNotifier {
         i == human ? null : Bot(difficulty, _rng),
     ];
     game = Game(rules: rules, players: players, rng: _rng);
+    _hasGame = true;
+    gameId++;
     _seenEvent = game.events.isEmpty ? 0 : game.events.last.id;
     banner = null;
     _startIntro();
   }
 
+  /// Applies a match state from the server (online play).
+  void applyRemote(Map<String, dynamic> msg) {
+    if (_disposed) return;
+    final next = gameFromView(msg['view'] as Map<String, dynamic>);
+    final id = msg['id'] as int;
+    final newMatch = id != _remoteMatch;
+    final newRound = newMatch || !_hasGame || next.round != game.round;
+    game = next;
+    _hasGame = true;
+    if (newMatch) {
+      _remoteMatch = id;
+      gameId++;
+      banner = null;
+    }
+    thinkingSeat = msg['thinking'] as int?;
+    final clock = msg['clockMs'] as int?;
+    turnDeadline = clock == null
+        ? null
+        : DateTime.now().add(Duration(milliseconds: clock));
+    if (newRound) {
+      _seenEvent = game.events.isEmpty ? 0 : game.events.last.id;
+      if (msg['opening'] == true) {
+        _startIntro();
+        return;
+      }
+    }
+    _afterChange();
+  }
+
   void restart() {
+    if (online) return;
     _paused = false;
     _newGame();
   }
 
   /// Freezes bots and the turn clock while a menu or guide is open.
   void pause() {
+    if (online) return;
     _paused = true;
     _cancelAll();
   }
 
   void resume() {
-    if (!_paused) return;
+    if (online || !_paused) return;
     _paused = false;
     if (inIntro) {
       _runIntro();
@@ -145,7 +203,7 @@ class GameController extends ChangeNotifier {
   }
 
   void nextRound() {
-    if (game.phase != Phase.roundOver || humanOut) return;
+    if (online || game.phase != Phase.roundOver || humanOut) return;
     game.nextRound();
     _seenEvent = game.events.last.id;
     _startIntro();
@@ -214,9 +272,10 @@ class GameController extends ChangeNotifier {
     }
   }
 
-  /// Ends the opening and starts play (also when the player taps to skip).
-  void skipIntro() {
-    if (!inIntro) return;
+  /// Ends the opening and starts play. Online, the server holds play for
+  /// the whole opening, so taps ([user]) cannot skip it.
+  void skipIntro({bool user = false}) {
+    if (!inIntro || (user && online)) return;
     _introTimer?.cancel();
     intro = null;
     dealt = _dealSeats.length;
@@ -231,28 +290,47 @@ class GameController extends ChangeNotifier {
     CardColor? color,
     int? swapWith,
     List<GameCard> extra = const [],
-  }) => _human(() {
-    _humanClockRunning = false;
-    game.play(human, card, color: color, swapWith: swapWith, extra: extra);
-  });
+  }) => _human(
+    () {
+      _humanClockRunning = false;
+      game.play(human, card, color: color, swapWith: swapWith, extra: extra);
+    },
+    {
+      'a': 'play',
+      'card': card.id,
+      'color': color?.index,
+      'swap': swapWith,
+      'extra': [for (final c in extra) c.id],
+    },
+  );
 
-  String? draw() => _human(() => game.draw(human));
-  String? pass() => _human(() => game.pass(human));
-  String? challenge() => _human(() => game.challengeWild(human));
+  String? draw() => _human(() => game.draw(human), {'a': 'draw'});
+  String? pass() => _human(() => game.pass(human), {'a': 'pass'});
+  String? challenge() =>
+      _human(() => game.challengeWild(human), {'a': 'challenge'});
 
   void callLast() {
+    if (online) return send!({'a': 'last'});
     game.callLast(human);
     _afterChange();
   }
 
   bool catchBot(int seat) {
+    if (online) {
+      send!({'a': 'catch', 'target': seat});
+      return true;
+    }
     final ok = game.catchPlayer(human, seat);
     if (ok) _afterChange();
     return ok;
   }
 
-  String? _human(void Function() action) {
+  String? _human(void Function() action, Map<String, Object?> remote) {
     if (inIntro) return 'Wait for the deal to finish';
+    if (online) {
+      send!(remote);
+      return null;
+    }
     try {
       action();
     } on StateError {
@@ -267,9 +345,16 @@ class GameController extends ChangeNotifier {
 
   void _afterChange() {
     if (_disposed) return;
-    thinkingSeat = null;
+    if (!online) thinkingSeat = null;
     final bannerShown = _readEvents();
     if (_paused || inIntro) {
+      notifyListeners();
+      return;
+    }
+    if (online) {
+      // The server runs bots and clocks; only react to what happened.
+      if (isMyTurn && !_wasMyTurn) playSfx(Sfx.turn);
+      _wasMyTurn = isMyTurn;
       notifyListeners();
       return;
     }

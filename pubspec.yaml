@@ -12,6 +12,8 @@ dependencies:
   material_ui: ^1.1.0
   last_card_core:
     path: packages/last_card_core
+  web_socket_channel: ^3.0.3
+  web: ^1.1.2
 
 dev_dependencies:
   flutter_test:

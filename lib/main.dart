@@ -10,11 +10,19 @@ void main() {
   WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   watchForUpdates();
-  runApp(const LastCardApp());
+  // Invite links look like https://host/#join=ROOMID-1234.
+  final fragment = Uri.base.fragment;
+  runApp(
+    LastCardApp(
+      joinCode: fragment.startsWith('join=') ? fragment.substring(5) : null,
+    ),
+  );
 }
 
 class LastCardApp extends StatelessWidget {
-  const LastCardApp({super.key});
+  const LastCardApp({super.key, this.joinCode});
+
+  final String? joinCode;
 
   @override
   Widget build(BuildContext context) {
@@ -42,7 +50,7 @@ class LastCardApp extends StatelessWidget {
           ),
         ),
       ),
-      home: const HomeScreen(),
+      home: HomeScreen(joinCode: joinCode),
     );
   }
 }
