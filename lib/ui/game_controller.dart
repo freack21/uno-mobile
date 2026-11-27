@@ -218,9 +218,14 @@ class GameController extends ChangeNotifier {
   // --------------------------------------------------------- human actions
 
   /// Returns an error message if the move was no longer legal.
-  String? play(GameCard card, {CardColor? color, int? swapWith}) => _human(() {
+  String? play(
+    GameCard card, {
+    CardColor? color,
+    int? swapWith,
+    List<GameCard> extra = const [],
+  }) => _human(() {
     _humanClockRunning = false;
-    game.play(human, card, color: color, swapWith: swapWith);
+    game.play(human, card, color: color, swapWith: swapWith, extra: extra);
   });
 
   String? draw() => _human(() => game.draw(human));
@@ -304,11 +309,12 @@ class GameController extends ChangeNotifier {
       return;
     }
     switch (bot.decide(g, seat)) {
-      case PlayMove(:final card, :final color, :final swapWith):
-        if (g.players[seat].hand.length == 2 && bot.callsLast()) {
+      case PlayMove(:final card, :final color, :final swapWith, :final extra):
+        if (g.players[seat].hand.length == 2 + extra.length &&
+            bot.callsLast()) {
           g.callLast(seat);
         }
-        g.play(seat, card, color: color, swapWith: swapWith);
+        g.play(seat, card, color: color, swapWith: swapWith, extra: extra);
       case DrawMove():
         g.draw(seat);
       case PassMove():

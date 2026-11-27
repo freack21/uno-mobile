@@ -245,6 +245,54 @@ const gameModes = <GameMode>[
     ],
   ),
   GameMode(
+    id: 'doubles',
+    name: 'Doubles',
+    tagline: 'Got two 6s? Throw them both in one go.',
+    accent: _yellow,
+    rules: RuleSet(combos: true),
+    guide: [
+      GuideSection(
+        'How it works',
+        [
+          'Play your first card as usual: it must match the color or the symbol.',
+          'Then add any other cards with the same number or symbol from your hand, in any color, in the same turn.',
+          'The last card you put down sets the next color, so pick the order wisely.',
+          'Wild cards combo with the same kind of Wild; Flip cards never combo.',
+        ],
+        cards: [
+          CardFace(_yellow, CardKind.number, value: 6),
+          CardFace(_red, CardKind.number, value: 6),
+          CardFace(_blue, CardKind.number, value: 6),
+        ],
+      ),
+      GuideSection(
+        'Action combos add up',
+        [
+          'Two Skips skip the next two players.',
+          'Two +2s make the next player draw 4 (or answer with a stack if Stacking is on).',
+          'Two Reverses cancel out: play keeps its direction.',
+          'Seven-O (Custom): 7s swap hands once and 0s pass hands once, however many you play.',
+        ],
+        cards: [
+          CardFace(_green, CardKind.skip),
+          CardFace(_blue, CardKind.skip),
+          CardFace(_red, CardKind.draw, draw: 2),
+          CardFace(_yellow, CardKind.draw, draw: 2),
+        ],
+      ),
+      GuideSection('Controls', [
+        'Tap your first card: matching cards light up with a badge.',
+        'Tap them in the order you want to play them, then tap Play.',
+        'Tap the first card again (or Cancel) to back out.',
+        'You can call Last Card early when a combo would leave you with one card.',
+      ]),
+      GuideSection('Tips', [
+        'Combos empty your hand fast — keep pairs instead of splitting them.',
+        'End on the color you hold the most of.',
+      ]),
+    ],
+  ),
+  GameMode(
     id: 'draw_until',
     name: 'Draw Until Playable',
     tagline: 'No easy outs. Keep drawing until something fits.',
@@ -463,7 +511,7 @@ const gameModes = <GameMode>[
       GuideSection('How it works', [
         'Choose the deck: Classic, Merciless or Flipside.',
         'Choose a match format: single round, Point Race or Elimination.',
-        'Toggle any house rule: stacking, Seven-O, Jump-In, draw until playable, Wild +4 challenge, turn timer, 25-card knockout or 2v2 teams.',
+        'Toggle any house rule: stacking, Seven-O, Jump-In, Doubles, draw until playable, Wild +4 challenge, turn timer, 25-card knockout or 2v2 teams.',
         'Each rule works exactly as described in its own mode guide.',
       ]),
       GuideSection('Combos worth trying', [

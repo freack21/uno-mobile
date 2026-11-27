@@ -12,6 +12,7 @@ Original name and artwork; classic "match the color or symbol" mechanics.
 | Stacking | +2 on +2, +4 on +4; the first who can't stack draws the total. |
 | Seven-O | 7 swaps hands with a chosen player, 0 rotates every hand. |
 | Jump-In | Play an identical card out of turn. |
+| Doubles | Play several cards with the same number or symbol in one turn; action effects add up. |
 | Draw Until Playable | Keep drawing until a card fits. |
 | Merciless | 164-card deck (+6, +10, Skip All, Discard All, Wild Draw Color), escalating stacks, 25-card knockout. |
 | Flipside | Two-sided deck; Flip turns every card to its light/dark side. |

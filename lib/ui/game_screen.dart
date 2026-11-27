@@ -77,20 +77,65 @@ class _GameScreenState extends State<GameScreen> {
     });
   }
 
+  /// Doubles: cards picked for a combo, in play order (first = lead card).
+  List<GameCard> _combo = [];
+
+  bool get _comboValid {
+    if (_combo.isEmpty || !c.isMyTurn || c.inIntro) return false;
+    final lead = _combo.first;
+    final hand = c.me.hand.map((x) => x.id).toSet();
+    return _combo.every((x) => hand.contains(x.id)) &&
+        g.isPlayable(GameController.human, lead) &&
+        g.canCombo(GameController.human, lead, _combo.sublist(1));
+  }
+
   Future<void> _onCardTap(GameCard card) async {
     if (_busy || c.showResults || c.inIntro) return;
+    if (_comboValid) {
+      final i = _combo.indexWhere((x) => x.id == card.id);
+      HapticFeedback.selectionClick();
+      if (i == 0) {
+        setState(() => _combo = []);
+      } else if (i > 0) {
+        setState(() => _combo.removeAt(i));
+      } else if (g
+          .comboPartners(GameController.human, _combo.first)
+          .any((x) => x.id == card.id)) {
+        setState(() => _combo.add(card));
+      } else {
+        _flash('Only ${g.face(_combo.first).symbol} cards join this combo');
+      }
+      return;
+    }
     final jump = !c.isMyTurn && g.canJumpIn(GameController.human, card);
     if (!jump && !g.isPlayable(GameController.human, card)) {
       HapticFeedback.selectionClick();
       _flash(c.isMyTurn ? _whyNot(card) : 'Wait for your turn');
       return;
     }
+    if (!jump && g.comboPartners(GameController.human, card).isNotEmpty) {
+      HapticFeedback.selectionClick();
+      setState(() => _combo = [card]);
+      return;
+    }
+    await _commit(card, const []);
+  }
+
+  Future<void> _playCombo() async {
+    if (!_comboValid) return;
+    final cards = List.of(_combo);
+    setState(() => _combo = []);
+    await _commit(cards.first, cards.sublist(1));
+  }
+
+  Future<void> _commit(GameCard card, List<GameCard> extra) async {
+    final last = extra.isEmpty ? card : extra.last;
     CardColor? color;
     int? swapWith;
     _busy = true;
     try {
-      if (g.needsColor(card)) {
-        final flipping = g.face(card).kind == CardKind.flip;
+      if (g.needsColor(last)) {
+        final flipping = g.face(last).kind == CardKind.flip;
         color = await _pickColor(
           flipping
               ? (g.side.other == Side.light ? CardColor.light : CardColor.dark)
@@ -99,7 +144,7 @@ class _GameScreenState extends State<GameScreen> {
         );
         if (color == null) return;
       }
-      if (g.needsSwapTarget(GameController.human, card)) {
+      if (g.needsSwapTarget(GameController.human, card, extra: extra.length)) {
         swapWith = await _pickSwap();
         if (swapWith == null) return;
       }
@@ -107,7 +152,7 @@ class _GameScreenState extends State<GameScreen> {
       _busy = false;
     }
     HapticFeedback.lightImpact();
-    final err = c.play(card, color: color, swapWith: swapWith);
+    final err = c.play(card, color: color, swapWith: swapWith, extra: extra);
     if (err != null) _flash(err);
   }
 
@@ -301,10 +346,20 @@ class _GameScreenState extends State<GameScreen> {
                             deckKey: _deckKey,
                           ),
                         ),
-                        _StatusBar(controller: c, hint: _hint),
+                        _StatusBar(
+                          controller: c,
+                          hint: _hint,
+                          combo: _comboValid ? _combo : const [],
+                          onPlayCombo: _playCombo,
+                          onCancelCombo: () => setState(() => _combo = []),
+                        ),
                         KeyedSubtree(
                           key: _handKey,
-                          child: _Hand(controller: c, onTap: _onCardTap),
+                          child: _Hand(
+                            controller: c,
+                            onTap: _onCardTap,
+                            combo: _comboValid ? _combo : const [],
+                          ),
                         ),
                       ],
                     ),
@@ -1170,7 +1225,17 @@ class _TableBannerViewState extends State<TableBannerView> {
 // --------------------------------------------------------------- status bar
 
 class _StatusBar extends StatelessWidget {
-  const _StatusBar({required this.controller, required this.hint});
+  const _StatusBar({
+    required this.controller,
+    required this.hint,
+    required this.combo,
+    required this.onPlayCombo,
+    required this.onCancelCombo,
+  });
+
+  final List<GameCard> combo;
+  final VoidCallback onPlayCombo;
+  final VoidCallback onCancelCombo;
 
   final GameController controller;
   final String? hint;
@@ -1187,7 +1252,13 @@ class _StatusBar extends StatelessWidget {
         (g.vulnerable == GameController.human ||
             (myTurn && me.hand.length == 2 && g.playableCards(0).isNotEmpty));
 
-    final text = hint ?? _status(c);
+    final text =
+        hint ??
+        (combo.isEmpty
+            ? _status(c)
+            : combo.length == 1
+            ? 'Tap more ${g.face(combo.first).symbol}s to add'
+            : 'Last card sets the color');
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
       child: Column(
@@ -1220,6 +1291,20 @@ class _StatusBar extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (combo.isNotEmpty) ...[
+                  IconButton(
+                    tooltip: 'Cancel combo',
+                    onPressed: onCancelCombo,
+                    icon: const Icon(Icons.close_rounded),
+                    color: Palette.muted,
+                  ),
+                  _ActionButton(
+                    label: 'Play ${combo.length}',
+                    color: Palette.brand,
+                    onTap: onPlayCombo,
+                  ),
+                  const SizedBox(width: 8),
+                ],
                 if (myTurn && g.canChallenge) ...[
                   _ActionButton(
                     label: 'Challenge',
@@ -1414,7 +1499,14 @@ class _LastButtonState extends State<_LastButton>
 // --------------------------------------------------------------------- hand
 
 class _Hand extends StatelessWidget {
-  const _Hand({required this.controller, required this.onTap});
+  const _Hand({
+    required this.controller,
+    required this.onTap,
+    required this.combo,
+  });
+
+  /// Cards picked for a Doubles combo, in play order.
+  final List<GameCard> combo;
 
   final GameController controller;
   final ValueChanged<GameCard> onTap;
@@ -1440,6 +1532,12 @@ class _Hand extends StatelessWidget {
         ? const <int>{}
         : g.jumpInCards(GameController.human).map((c) => c.id).toSet();
     final flip = g.rules.deck == DeckType.flipside;
+    final partners = combo.isEmpty
+        ? const <int>{}
+        : g
+              .comboPartners(GameController.human, combo.first)
+              .map((c) => c.id)
+              .toSet();
 
     return LayoutBuilder(
       builder: (context, box) {
@@ -1470,10 +1568,7 @@ class _Hand extends StatelessWidget {
                   left: start + i * step,
                   width: cardW,
                   lift: lift,
-                  playable:
-                      myTurn && g.isPlayable(GameController.human, hand[i]),
-                  jump: jumps.contains(hand[i].id),
-                  dim: myTurn && !g.isPlayable(GameController.human, hand[i]),
+                  look: _look(g, hand[i], myTurn, jumps, partners),
                   flip: flip,
                 ),
             ],
@@ -1492,24 +1587,70 @@ class _Hand extends StatelessWidget {
     );
   }
 
+  _CardLook _look(
+    Game g,
+    GameCard card,
+    bool myTurn,
+    Set<int> jumps,
+    Set<int> partners,
+  ) {
+    const gold = Color(0xFFF4B620);
+    if (combo.isNotEmpty) {
+      final order = combo.indexWhere((c) => c.id == card.id);
+      if (order >= 0) {
+        return _CardLook(
+          up: true,
+          glow: Palette.brand,
+          badge: '${order + 1}',
+          badgeColor: Palette.brand,
+        );
+      }
+      if (partners.contains(card.id)) {
+        return const _CardLook(
+          up: true,
+          glow: gold,
+          badge: '+',
+          badgeColor: Color(0xFFE09A00),
+        );
+      }
+      return const _CardLook(dim: true);
+    }
+    if (jumps.contains(card.id)) {
+      return const _CardLook(
+        up: true,
+        glow: gold,
+        badge: 'JUMP',
+        badgeColor: Color(0xFFE09A00),
+      );
+    }
+    if (!myTurn) return const _CardLook();
+    if (!g.isPlayable(GameController.human, card)) {
+      return const _CardLook(dim: true);
+    }
+    final extra = g.comboPartners(GameController.human, card).length;
+    return _CardLook(
+      up: true,
+      glow: Colors.white.withValues(alpha: 0.35),
+      badge: extra > 0 ? '×${extra + 1}' : null,
+      badgeColor: Palette.surfaceHigh,
+    );
+  }
+
   Widget _handCard(
     Game g,
     GameCard card, {
     required double left,
     required double width,
     required double lift,
-    required bool playable,
-    required bool jump,
-    required bool dim,
+    required _CardLook look,
     required bool flip,
   }) {
-    final up = playable || jump;
     return AnimatedPositioned(
       key: ValueKey(card.id),
       duration: const Duration(milliseconds: 260),
       curve: Curves.easeOutCubic,
       left: left,
-      top: up ? 0 : lift,
+      top: look.up ? 0 : lift,
       child: GestureDetector(
         onTap: () => onTap(card),
         child: Column(
@@ -1520,21 +1661,17 @@ class _Hand extends StatelessWidget {
                 PlayingCard(
                   width: width,
                   face: g.face(card),
-                  dimmed: dim && !jump,
+                  dimmed: look.dim,
                   wildColors: g.sideColors,
-                  glow: jump
-                      ? const Color(0xFFF4B620)
-                      : playable
-                      ? Colors.white.withValues(alpha: 0.35)
-                      : null,
+                  glow: look.glow,
                 ),
-                if (jump)
-                  const Positioned(
+                if (look.badge != null)
+                  Positioned(
                     top: -8,
                     left: 0,
                     right: 0,
                     child: Center(
-                      child: _Chip(label: 'JUMP', color: Color(0xFFE09A00)),
+                      child: _Chip(label: look.badge!, color: look.badgeColor),
                     ),
                   ),
               ],
@@ -2139,4 +2276,21 @@ class _OrderSeat extends StatelessWidget {
       ],
     );
   }
+}
+
+/// How a card in the hand is drawn: lifted, dimmed, glowing, badged.
+class _CardLook {
+  const _CardLook({
+    this.up = false,
+    this.dim = false,
+    this.glow,
+    this.badge,
+    this.badgeColor = Palette.surfaceHigh,
+  });
+
+  final bool up;
+  final bool dim;
+  final Color? glow;
+  final String? badge;
+  final Color badgeColor;
 }

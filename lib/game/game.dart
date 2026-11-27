@@ -181,18 +181,37 @@ class Game {
   List<GameCard> jumpInCards(int seat) =>
       players[seat].hand.where((c) => canJumpIn(seat, c)).toList();
 
+  /// Doubles: cards that may join [first] in one turn (same symbol, any
+  /// color). Flip cards never combo because they turn every card over.
+  List<GameCard> comboPartners(int seat, GameCard first) {
+    final f = face(first);
+    if (!rules.combos || f.kind == CardKind.flip || phase != Phase.play) {
+      return const [];
+    }
+    return players[seat].hand
+        .where((c) => c.id != first.id && face(c).sameSymbol(f))
+        .toList();
+  }
+
+  bool canCombo(int seat, GameCard first, List<GameCard> extra) {
+    if (seat != current) return false; // Jump-Ins are single cards.
+    final partners = comboPartners(seat, first).map((c) => c.id).toSet();
+    final ids = extra.map((c) => c.id).toSet();
+    return ids.length == extra.length && partners.containsAll(ids);
+  }
+
   /// The play needs a color choice from the player.
   bool needsColor(GameCard card) =>
       face(card).isWild ||
       (face(card).kind == CardKind.flip && card.face(side.other).isWild);
 
-  /// The play needs a swap target (Seven-O "7").
-  bool needsSwapTarget(int seat, GameCard card) {
+  /// The play needs a swap target (Seven-O "7"), unless it empties the hand.
+  bool needsSwapTarget(int seat, GameCard card, {int extra = 0}) {
     final f = face(card);
     return rules.sevenZero &&
         f.kind == CardKind.number &&
         f.value == 7 &&
-        players[seat].hand.length > 1;
+        players[seat].hand.length > 1 + extra;
   }
 
   /// The player on turn faces a penalty and may resolve it by challenging.
@@ -201,7 +220,12 @@ class Game {
   bool canCallLast(int seat) {
     final p = players[seat];
     if (p.calledLast || p.out || isRoundOver) return false;
-    return p.hand.length == 1 || (p.hand.length == 2 && seat == current);
+    if (p.hand.length == 1) return true;
+    if (seat != current) return false;
+    if (p.hand.length == 2) return true;
+    // Doubles: a combo can take you straight down to one card.
+    return rules.combos &&
+        p.hand.any((c) => comboPartners(seat, c).length == p.hand.length - 2);
   }
 
   int handPoints(Player p) => p.hand.fold(0, (s, c) => s + face(c).points);
@@ -250,7 +274,18 @@ class Game {
   // ----------------------------------------------------------------- moves
 
   /// Plays [card]. If it is not [seat]'s turn this is a Jump-In.
-  void play(int seat, GameCard card, {CardColor? color, int? swapWith}) {
+  /// Plays [card]. If it is not [seat]'s turn this is a Jump-In.
+  ///
+  /// With [RuleSet.combos], [extra] holds more cards with the same symbol
+  /// (any color) played in the same turn, in order: the last one sets the
+  /// color, and action effects add up (two Skips skip two players).
+  void play(
+    int seat,
+    GameCard card, {
+    CardColor? color,
+    int? swapWith,
+    List<GameCard> extra = const [],
+  }) {
     final p = players[seat];
     if (!p.hand.any((c) => c.id == card.id)) {
       throw StateError('Card not in hand');
@@ -259,47 +294,59 @@ class Game {
     if (jump ? !canJumpIn(seat, card) : !isPlayable(seat, card)) {
       throw StateError('Illegal play: $card');
     }
-    if (needsColor(card) && (color == null || !_validColor(card, color))) {
+    if (extra.isNotEmpty && !canCombo(seat, card, extra)) {
+      throw StateError('Illegal combo');
+    }
+    final last = extra.isEmpty ? card : extra.last;
+    if (needsColor(last) && (color == null || !_validColor(last, color))) {
       throw StateError('A valid color is required');
     }
     _clearVulnerable(seat);
     if (jump) current = seat;
 
     final f = face(card);
+    final played = [card, ...extra];
+    final n = played.length;
     final prevColor = activeColor;
-    p.hand.removeWhere((c) => c.id == card.id);
-    discard.add(card);
+    for (final c in played) {
+      p.hand.removeWhere((h) => h.id == c.id);
+      discard.add(c);
+    }
     drawnCard = null;
     phase = Phase.play;
     challenge = null;
-    activeColor = f.isWild ? color! : f.color;
+    activeColor = face(last).isWild ? color! : face(last).color;
     _log(
       jump ? EventType.jumpIn : EventType.play,
       jump
           ? '${p.name} jumped in with ${f.label}'
-          : '${p.name} played ${f.label}',
+          : '${p.name} played ${played.map((c) => face(c).label).join(' + ')}',
       seat: seat,
-      card: card,
+      card: last,
+      count: n,
     );
 
     if (f.kind == CardKind.discardAll) {
-      final extra = p.hand.where((c) => face(c).color == f.color).toList();
-      if (extra.isNotEmpty) {
-        p.hand.removeWhere(extra.contains);
-        discard.insertAll(discard.length - 1, extra);
+      final colors = {for (final c in played) face(c).color};
+      final dropped = p.hand
+          .where((c) => colors.contains(face(c).color))
+          .toList();
+      if (dropped.isNotEmpty) {
+        p.hand.removeWhere(dropped.contains);
+        discard.insertAll(discard.length - 1, dropped);
         _log(
           EventType.discardAll,
-          '${p.name} discarded ${extra.length} more ${f.color.label} card${extra.length == 1 ? '' : 's'}',
+          '${p.name} discarded ${dropped.length} more card${dropped.length == 1 ? '' : 's'}',
           seat: seat,
-          count: extra.length,
+          count: dropped.length,
         );
       }
     }
 
     if (p.hand.isEmpty) {
-      // A final draw card still counts against the next player.
+      // Final draw cards still count against the next player.
       if (f.isDrawCard) {
-        _drawCards(nextSeat(seat), pendingDraw + f.draw);
+        _drawCards(nextSeat(seat), pendingDraw + f.draw * n);
         pendingDraw = 0;
       }
       _endRound(seat);
@@ -309,6 +356,7 @@ class Game {
 
     switch (f.kind) {
       case CardKind.number:
+        // Seven-O effects happen once, however many 7s or 0s were played.
         if (rules.sevenZero && f.value == 7) {
           _swapHands(seat, _validSwapTarget(seat, swapWith));
         } else if (rules.sevenZero && f.value == 0) {
@@ -316,19 +364,24 @@ class Game {
         }
         _advance(1);
       case CardKind.skip:
-        _logSkip(nextSeat(seat));
-        _advance(2);
+        _skipNext(seat, n);
       case CardKind.reverse:
         if (activePlayers.length == 2) {
-          _logSkip(nextSeat(seat));
-          _advance(2);
+          // Reverse works like Skip with two players.
+          _skipNext(seat, n);
         } else {
-          direction = -direction;
-          _log(EventType.reverse, 'Direction reversed', seat: seat);
+          if (n.isOdd) direction = -direction;
+          _log(
+            EventType.reverse,
+            n.isOdd
+                ? 'Direction reversed'
+                : 'Reversed $n times: same direction',
+            seat: seat,
+          );
           _advance(1);
         }
       case CardKind.draw || CardKind.wildDraw:
-        pendingDraw += f.draw;
+        pendingDraw += f.draw * n;
         if (rules.challengeWild4 &&
             f.kind == CardKind.wildDraw &&
             f.draw == 4 &&
@@ -340,11 +393,11 @@ class Game {
         }
         _advance(1);
       case CardKind.wildReverseDraw:
-        if (activePlayers.length > 2) {
+        if (activePlayers.length > 2 && n.isOdd) {
           direction = -direction;
           _log(EventType.reverse, 'Direction reversed', seat: seat);
         }
-        pendingDraw += f.draw;
+        pendingDraw += f.draw * n;
         _advance(1);
       case CardKind.skipAll:
         _log(EventType.skip, '${p.name} skipped everyone', seat: seat);
@@ -362,16 +415,29 @@ class Game {
         _advance(1);
       case CardKind.wildDrawColor:
         final victim = nextSeat(seat);
-        final drawn = _drawUntilColor(victim, activeColor);
+        var dug = 0;
+        for (var i = 0; i < n && !players[victim].out; i++) {
+          dug += _drawUntilColor(victim, activeColor).length;
+        }
         _log(
           EventType.penalty,
-          '${players[victim].name} dug ${drawn.length} card${drawn.length == 1 ? '' : 's'} for ${activeColor.label}',
+          '${players[victim].name} dug $dug card${dug == 1 ? '' : 's'} for ${activeColor.label}',
           seat: victim,
-          count: drawn.length,
+          count: dug,
         );
         if (isRoundOver) return;
         _advance(players[victim].out ? 1 : 2);
     }
+  }
+
+  /// Skips the next [count] players after [seat].
+  void _skipNext(int seat, int count) {
+    var s = seat;
+    for (var i = 0; i < count; i++) {
+      s = nextSeat(s);
+      _logSkip(s);
+    }
+    _advance(1 + count);
   }
 
   /// Draws on your turn. With a pending penalty this takes the penalty.

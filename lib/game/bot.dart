@@ -9,11 +9,14 @@ sealed class BotMove {
 }
 
 class PlayMove extends BotMove {
-  const PlayMove(this.card, {this.color, this.swapWith});
+  const PlayMove(this.card, {this.color, this.swapWith, this.extra = const []});
 
   final GameCard card;
   final CardColor? color;
   final int? swapWith;
+
+  /// Doubles: more cards with the same symbol, played after [card].
+  final List<GameCard> extra;
 }
 
 class DrawMove extends BotMove {
@@ -131,11 +134,40 @@ class Bot {
         Difficulty.hard => 0.95,
       };
 
-  PlayMove _play(Game g, int seat, GameCard card) => PlayMove(
-    card,
-    color: g.needsColor(card) ? _bestColor(g, seat, card) : null,
-    swapWith: g.needsSwapTarget(seat, card) ? _swapTarget(g, seat) : null,
-  );
+  PlayMove _play(Game g, int seat, GameCard card) {
+    final extra = _combo(g, seat, card);
+    final last = extra.isEmpty ? card : extra.last;
+    return PlayMove(
+      card,
+      extra: extra,
+      color: g.needsColor(last) ? _bestColor(g, seat, last) : null,
+      swapWith: g.needsSwapTarget(seat, card, extra: extra.length)
+          ? _swapTarget(g, seat)
+          : null,
+    );
+  }
+
+  /// Same-symbol cards to throw along with [card] (Doubles).
+  List<GameCard> _combo(Game g, int seat, GameCard card) {
+    final partners = g.comboPartners(seat, card);
+    if (partners.isEmpty) return const [];
+    if (_easy) {
+      // Beginners don't always spot the combo.
+      return rng.nextBool() ? const [] : [partners.first];
+    }
+    final next = g.nextSeat(seat);
+    final f = g.face(card);
+    final attacks = f.kind == CardKind.skip || f.isDrawCard;
+    // Don't pile extra Skips or draws on a teammate.
+    if (attacks && g.isTeammate(seat, next)) return const [];
+    // End on the color the bot holds most of, so the next turn is easy.
+    final rest = g.players[seat].hand
+        .where((c) => c.id != card.id && !partners.contains(c))
+        .toList();
+    int held(GameCard c) =>
+        rest.where((r) => g.face(r).color == g.face(c).color).length;
+    return List.of(partners)..sort((a, b) => held(a).compareTo(held(b)));
+  }
 
   int _score(Game g, int seat, GameCard card) {
     final f = g.face(card);

@@ -11,6 +11,7 @@ IconData modeIcon(String id) => switch (id) {
   'stacking' => Icons.layers_rounded,
   'seven_o' => Icons.swap_horiz_rounded,
   'jump_in' => Icons.bolt_rounded,
+  'doubles' => Icons.filter_2_rounded,
   'draw_until' => Icons.all_inclusive_rounded,
   'merciless' => Icons.local_fire_department_rounded,
   'flipside' => Icons.flip_rounded,

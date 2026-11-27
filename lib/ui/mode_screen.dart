@@ -215,6 +215,12 @@ class _ModeScreenState extends State<ModeScreen> {
         (v) => _setRules(r.copyWith(jumpIn: v)),
       ),
       _Toggle(
+        'Doubles',
+        'Play same-number cards together',
+        r.combos,
+        (v) => _setRules(r.copyWith(combos: v)),
+      ),
+      _Toggle(
         'Draw until playable',
         'Keep drawing until a card fits',
         r.drawUntilPlayable,

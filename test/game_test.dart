@@ -70,11 +70,12 @@ int runBotMatch(RuleSet rules, int players, int seed) {
     if (g.isRoundOver) continue;
     final seat = g.current;
     switch (bots[seat].decide(g, seat)) {
-      case PlayMove(:final card, :final color, :final swapWith):
-        if (g.players[seat].hand.length == 2 && bots[seat].callsLast()) {
+      case PlayMove(:final card, :final color, :final swapWith, :final extra):
+        if (g.players[seat].hand.length == 2 + extra.length &&
+            bots[seat].callsLast()) {
           g.callLast(seat);
         }
-        g.play(seat, card, color: color, swapWith: swapWith);
+        g.play(seat, card, color: color, swapWith: swapWith, extra: extra);
       case DrawMove():
         g.draw(seat);
       case PassMove():
@@ -523,6 +524,160 @@ void main() {
     });
   });
 
+  group('doubles', () {
+    const doubles = RuleSet(combos: true);
+
+    test('same number in any color plays together; last sets the color', () {
+      final y6 = num(CardColor.yellow, 6);
+      final r6 = num(CardColor.red, 6);
+      final g = setup(doubles, [
+        [y6, r6, num(CardColor.blue, 1)],
+        [num(CardColor.red, 3)],
+      ], top: num(CardColor.yellow, 9));
+      expect(g.comboPartners(0, y6).map((c) => c.id), [r6.id]);
+      g.play(0, y6, extra: [r6]);
+      expect(g.players[0].hand.length, 1);
+      expect(g.top.id, r6.id);
+      expect(g.activeColor, CardColor.red);
+      expect(g.current, 1);
+    });
+
+    test('rejected when the rule is off or symbols differ', () {
+      final y6 = num(CardColor.yellow, 6);
+      final r6 = num(CardColor.red, 6);
+      final r7 = num(CardColor.red, 7);
+      final off = setup(const RuleSet(), [
+        [y6, r6, r7],
+        [num(CardColor.red, 3)],
+      ], top: num(CardColor.yellow, 9));
+      expect(() => off.play(0, y6, extra: [r6]), throwsStateError);
+      final on = setup(doubles, [
+        [y6, r6, r7],
+        [num(CardColor.red, 3)],
+      ], top: num(CardColor.yellow, 9));
+      expect(() => on.play(0, y6, extra: [r7]), throwsStateError);
+      expect(() => on.play(0, y6, extra: [r6, r6]), throwsStateError);
+      expect(on.players[0].hand.length, 3, reason: 'nothing played');
+    });
+
+    test('two skips skip two players', () {
+      final a = card(CardColor.red, CardKind.skip);
+      final b = card(CardColor.blue, CardKind.skip);
+      final g = setup(doubles, [
+        [a, b, num(CardColor.red, 1)],
+        [num(CardColor.red, 2)],
+        [num(CardColor.red, 3)],
+        [num(CardColor.red, 4)],
+      ], top: num(CardColor.red, 9));
+      g.play(0, a, extra: [b]);
+      expect(g.current, 3);
+    });
+
+    test('two +2s make the next player draw 4', () {
+      final a = card(CardColor.red, CardKind.draw, draw: 2);
+      final b = card(CardColor.green, CardKind.draw, draw: 2);
+      final g = setup(doubles, [
+        [a, b, num(CardColor.red, 1)],
+        [num(CardColor.blue, 2)],
+        [num(CardColor.red, 3)],
+      ], top: num(CardColor.red, 9));
+      g.play(0, a, extra: [b]);
+      expect(g.players[1].hand.length, 5);
+      expect(g.current, 2);
+    });
+
+    test('two reverses keep the direction', () {
+      final a = card(CardColor.red, CardKind.reverse);
+      final b = card(CardColor.blue, CardKind.reverse);
+      final g = setup(doubles, [
+        [a, b, num(CardColor.red, 1)],
+        [num(CardColor.red, 2)],
+        [num(CardColor.red, 3)],
+      ], top: num(CardColor.red, 9));
+      g.play(0, a, extra: [b]);
+      expect(g.direction, 1);
+      expect(g.current, 1);
+    });
+
+    test('wild +4 pair adds up and cannot be challenged', () {
+      final a = card(CardColor.wild, CardKind.wildDraw, draw: 4);
+      final b = card(CardColor.wild, CardKind.wildDraw, draw: 4);
+      final g = setup(const RuleSet(combos: true, challengeWild4: true), [
+        [a, b, num(CardColor.red, 1)],
+        [num(CardColor.blue, 2)],
+        [num(CardColor.red, 3)],
+      ], top: num(CardColor.red, 9));
+      g.play(0, a, extra: [b], color: CardColor.green);
+      expect(g.players[1].hand.length, 9);
+      expect(g.activeColor, CardColor.green);
+    });
+
+    test('Seven-O: two 7s swap hands once', () {
+      final a = num(CardColor.red, 7);
+      final b = num(CardColor.blue, 7);
+      final g = setup(const RuleSet(combos: true, sevenZero: true), [
+        [a, b, num(CardColor.red, 1)],
+        [num(CardColor.blue, 2), num(CardColor.blue, 3)],
+        [num(CardColor.red, 3)],
+      ], top: num(CardColor.red, 9));
+      expect(g.needsSwapTarget(0, a, extra: 1), isTrue);
+      g.play(0, a, extra: [b], swapWith: 1);
+      expect(g.players[0].hand.length, 2);
+      expect(g.players[1].hand.length, 1);
+    });
+
+    test('a combo can win, and Last Card can be called before it', () {
+      final a = num(CardColor.red, 5);
+      final b = num(CardColor.blue, 5);
+      final c5 = num(CardColor.green, 5);
+      final g = setup(doubles, [
+        [a, b, c5],
+        [num(CardColor.blue, 2)],
+      ], top: num(CardColor.red, 9));
+      expect(g.canCallLast(0), isFalse, reason: 'combo empties the hand');
+      g.play(0, a, extra: [b, c5]);
+      expect(g.isMatchOver, isTrue);
+
+      final g2 = setup(doubles, [
+        [a, b, num(CardColor.green, 1)],
+        [num(CardColor.blue, 2)],
+      ], top: num(CardColor.red, 9));
+      expect(g2.canCallLast(0), isTrue);
+      g2.callLast(0);
+      g2.play(0, a, extra: [b]);
+      expect(g2.vulnerable, isNull);
+    });
+
+    test('jump-ins and flips stay single cards', () {
+      final twin = num(CardColor.blue, 5);
+      final other = num(CardColor.red, 5);
+      final g = setup(const RuleSet(combos: true, jumpIn: true), [
+        [num(CardColor.green, 1)],
+        [twin, other, num(CardColor.red, 1)],
+      ], top: num(CardColor.blue, 5));
+      expect(() => g.play(1, twin, extra: [other]), throwsStateError);
+      final flip = card(CardColor.red, CardKind.flip);
+      final g2 = setup(const RuleSet(combos: true, deck: DeckType.flipside), [
+        [flip, card(CardColor.blue, CardKind.flip)],
+        [num(CardColor.blue, 2)],
+      ], top: num(CardColor.red, 9));
+      expect(g2.comboPartners(0, flip), isEmpty);
+    });
+
+    test('bots throw their pairs', () {
+      final y6 = num(CardColor.yellow, 6);
+      final r6 = num(CardColor.red, 6);
+      final g = setup(doubles, [
+        [y6, r6, num(CardColor.red, 1), num(CardColor.red, 2)],
+        [num(CardColor.blue, 3)],
+      ], top: num(CardColor.yellow, 9));
+      final move = Bot(Difficulty.hard, Random(1)).decide(g, 0) as PlayMove;
+      expect(move.card.id, y6.id);
+      // Ends on red, the color it still holds.
+      expect(move.extra.map((c) => c.id), [r6.id]);
+    });
+  });
+
   group('bot pacing', () {
     int avg(Difficulty d, Game g, int seat) {
       final bot = Bot(d, Random(7));
@@ -597,6 +752,7 @@ void main() {
         jumpIn: true,
         drawUntilPlayable: true,
         challengeWild4: true,
+        combos: true,
         handLimit: 25,
       );
       for (var seed = 0; seed < 20; seed++) {

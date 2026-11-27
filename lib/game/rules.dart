@@ -39,6 +39,7 @@ class RuleSet {
     this.jumpIn = false,
     this.drawUntilPlayable = false,
     this.challengeWild4 = false,
+    this.combos = false,
     this.teams = false,
     this.turnSeconds,
     this.handLimit,
@@ -53,6 +54,9 @@ class RuleSet {
   final bool jumpIn;
   final bool drawUntilPlayable;
   final bool challengeWild4;
+
+  /// Doubles: play several cards with the same symbol in one turn.
+  final bool combos;
 
   /// 2v2: seats 0 & 2 versus seats 1 & 3.
   final bool teams;
@@ -73,6 +77,7 @@ class RuleSet {
     bool? jumpIn,
     bool? drawUntilPlayable,
     bool? challengeWild4,
+    bool? combos,
     bool? teams,
     int? Function()? turnSeconds,
     int? Function()? handLimit,
@@ -85,6 +90,7 @@ class RuleSet {
     jumpIn: jumpIn ?? this.jumpIn,
     drawUntilPlayable: drawUntilPlayable ?? this.drawUntilPlayable,
     challengeWild4: challengeWild4 ?? this.challengeWild4,
+    combos: combos ?? this.combos,
     teams: teams ?? this.teams,
     turnSeconds: turnSeconds != null ? turnSeconds() : this.turnSeconds,
     handLimit: handLimit != null ? handLimit() : this.handLimit,
