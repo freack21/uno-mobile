@@ -1,0 +1,15 @@
+.git
+.github
+.dart_tool
+.idea
+.vscode
+build
+android
+ios
+deploy/coolify
+docs
+**/*.md
+!assets/**
+Dockerfile
+docker-compose.yml
+.dockerignore

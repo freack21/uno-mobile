@@ -1,0 +1,22 @@
+# Coolify "Docker Compose" build pack definition. Traefik routes the domain to
+# port 8080, so no ports are published on the host.
+services:
+  web:
+    build:
+      context: .
+      args:
+        DEBIAN_IMAGE: ${DEBIAN_IMAGE:-debian:bookworm-slim}
+        NGINX_IMAGE: ${NGINX_IMAGE:-nginx:stable-alpine}
+    environment:
+      # Tells Coolify which container port Traefik routes the domain to.
+      SERVICE_URL_WEB_8080: /
+    expose:
+      - "8080"
+    restart: unless-stopped
+    init: true
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8080/healthz >/dev/null || exit 1"]
+      interval: 30s
+      timeout: 5s
+      start_period: 10s
+      retries: 3
