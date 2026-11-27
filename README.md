@@ -57,22 +57,40 @@ App icons are rendered from `tool/icon.svg` with `node tool/render_icons.js`
 Every mode has an in-app guide (mode page and the `?` button during a game),
 plus a shared "How to play" basics page.
 
+## Online play
+
+"Play online with friends" needs no account:
+
+1. One player creates a room and gets a random nickname, a 6-character room
+   ID, a 4-digit password and an invite link (`https://<host>/#join=ID-PASS`)
+   to share through WhatsApp etc.
+2. Friends open the link (or type the ID and password). Everyone can pick any
+   nickname that nobody else in the room is using.
+3. The host picks the mode (all modes except Custom) and optional bots, then
+   starts. Every match awards placement points — 1st 10, 2nd 6, 3rd 3,
+   others 1 — and the lobby shows each match's winner, the running totals and
+   a final score.
+
+The server is authoritative: it runs the same rules code as the app, deals
+and keeps every hidden card, and sends each player only what they may see
+(seats rotated so everyone sits at the bottom of their own screen). Players
+who drop out are reconnected automatically with a saved token; a player who
+stays idle on their turn is played for after 25 seconds, and someone who
+leaves is replaced by a bot.
+
 ## Project layout
 
 ```
-lib/game/   Pure Dart engine (no Flutter imports)
-  cards.dart   Card model and deck builders
-  rules.dart   RuleSet: every house rule as a flag
-  game.dart    Game state machine, move validation and effects
-  bot.dart     Heuristic bots (easy / normal / hard)
-  modes.dart   Mode presets and guide content
-  exact_score.dart, hold_card.dart  Party game engines and their bots
-lib/ui/     Flutter UI
-  game_controller.dart  Bot scheduling, Jump-In races, Speed clock
-  game_screen.dart      Table, hand, banners, results
-  home_screen.dart, mode_screen.dart, guide_screen.dart
-  playing_card.dart     Card renderer
-test/       Engine unit tests, bot simulations for every mode, widget smoke tests
+packages/last_card_core/  Pure Dart rules shared by app and server
+  cards.dart, rules.dart, game.dart, bot.dart, modes.dart
+  exact_score.dart, hold_card.dart   Party games
+  table.dart, shed_table.dart, party_tables.dart  Runtimes pacing a match
+                                                  (bots, races, timeouts)
+  protocol.dart            Per-viewer JSON views of every game
+server/                    WebSocket room server (shelf); `dart test`
+lib/ui/                    Flutter screens (offline play runs locally)
+lib/online/                Online session, lobby and match screens
+test/                      Engine, protocol, runtime and widget tests
 ```
 
 ## Development
@@ -82,6 +100,8 @@ flutter pub get
 flutter analyze
 flutter test
 flutter run            # device or emulator
+(cd server && dart test)   # server tests
+(cd server && dart run bin/server.dart)   # local game server on :8081
 flutter build apk      # requires the Android SDK
 ```
 

@@ -13,8 +13,17 @@ project **DIGISION-DEV**, served at **https://uno.refandi.my.id**.
 | Coolify "Docker Compose" build pack | `docker-compose.yml` |
 | CI: tests, image smoke test, deploy webhook | `.github/workflows/ci.yml` |
 
-The app is static (no database, no secrets, no volumes). All game state lives
-in the player's browser.
+Two services run from `docker-compose.yml`:
+
+| Service | Image target | Role |
+| --- | --- | --- |
+| `web` | `web` | nginx serving the PWA on port 8080; proxies `/ws` to `server` |
+| `server` | `server` | Dart WebSocket game server for online rooms on port 8081 (not public) |
+
+Only `web` gets the domain. Online rooms live in the server's memory: no
+database, no secrets, no volumes. A server restart (for example a deploy)
+ends the rooms that are open at that moment; players simply create a new one.
+Keep one replica of `server`.
 
 ## 1. DNS (Cloudflare)
 
@@ -105,4 +114,5 @@ Open the site on a phone and use *Install app* (Android/desktop Chrome) or
 | Build fails while cloning Flutter or downloading the Dart SDK | The server needs outbound HTTPS to `github.com`, `storage.googleapis.com` and `pub.dev` |
 | Redirect loop / SSL error | Cloudflare SSL mode must be Full (strict) |
 | iPhone: app does not fill the screen or the top looks blurred | Fixed by the opaque status bar in `web/index.html`; iOS reads it only when the app is added, so remove the app from the Home Screen and add it again |
+| "Cannot reach the game server" | Check that the `server` container is healthy in Coolify; `curl -fsS https://uno.refandi.my.id/healthz` only checks nginx |
 | Old version still shown | Close and reopen the app (the new service worker activates on launch); `index.html` and `sw.js` are never cached by nginx |
