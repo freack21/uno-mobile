@@ -104,4 +104,5 @@ Open the site on a phone and use *Install app* (Android/desktop Chrome) or
 | Build fails with `429 Too Many Requests` | `sudo bash setup.sh deploy --mirror` |
 | Build fails while cloning Flutter or downloading the Dart SDK | The server needs outbound HTTPS to `github.com`, `storage.googleapis.com` and `pub.dev` |
 | Redirect loop / SSL error | Cloudflare SSL mode must be Full (strict) |
+| iPhone: app does not fill the screen or the top looks blurred | Fixed by the opaque status bar in `web/index.html`; iOS reads it only when the app is added, so remove the app from the Home Screen and add it again |
 | Old version still shown | Close and reopen the app (the new service worker activates on launch); `index.html` and `sw.js` are never cached by nginx |
