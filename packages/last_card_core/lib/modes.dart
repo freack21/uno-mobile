@@ -419,7 +419,7 @@ const gameModes = <GameMode>[
   GameMode(
     id: 'teams',
     name: 'Team 2v2',
-    tagline: 'You and a partner bot against two rivals.',
+    tagline: 'Two teams of two. Partners sit opposite.',
     accent: _blue,
     minPlayers: 4,
     maxPlayers: 4,
@@ -430,6 +430,7 @@ const gameModes = <GameMode>[
         'Four players: you sit opposite your partner. Your rivals sit left and right.',
         'Classic rules. The moment either partner empties their hand, the team wins.',
         'Your partner is marked with a team badge.',
+        'Offline, a bot is your partner. Online, the table order sets the teams: the 1st and 3rd player in the lobby list play the 2nd and 4th, and bots fill the empty seats.',
       ]),
       GuideSection('Tips', [
         'Avoid hitting your partner with Skip or +2 — play your attack when a rival is next.',
