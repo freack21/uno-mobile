@@ -11,18 +11,10 @@ import 'package:last_card_core/rules.dart';
 
 import 'game_controller.dart';
 import 'guide_screen.dart';
+import 'party_widgets.dart' show seatColor;
 import 'playing_card.dart';
 import 'sfx.dart';
 import 'theme.dart';
-
-const _seatColors = [
-  Palette.brand,
-  Color(0xFF2475D6),
-  Color(0xFF2EA358),
-  Color(0xFFF4B620),
-  Color(0xFF7A4AD0),
-  Color(0xFFF07A1C),
-];
 
 class GameScreen extends StatefulWidget {
   const GameScreen({
@@ -825,7 +817,7 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = _seatColors[player.seat % _seatColors.length];
+    final color = seatColor(player.seat);
     return Container(
       width: size,
       height: size,

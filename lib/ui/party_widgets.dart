@@ -20,6 +20,17 @@ const partySeatColors = [
   Color(0xFFF07A1C),
 ];
 
+/// Color index per seat while an online match is open, so everyone sees each
+/// player in the same color as in the lobby. Null offline: seat order.
+List<int>? seatColorMap;
+
+/// The avatar color of [seat] (a color index when [fixed] is given).
+Color seatColor(int seat, {int? fixed}) {
+  final map = seatColorMap;
+  final i = fixed ?? (map != null && seat < map.length ? map[seat] : seat);
+  return partySeatColors[i % partySeatColors.length];
+}
+
 class SeatAvatar extends StatelessWidget {
   const SeatAvatar({
     super.key,
@@ -27,9 +38,13 @@ class SeatAvatar extends StatelessWidget {
     required this.name,
     this.size = 44,
     this.active = false,
+    this.color,
   });
 
   final int seat;
+
+  /// Fixed color index; by default the seat's color.
+  final int? color;
   final String name;
   final double size;
   final bool active;
@@ -51,7 +66,7 @@ class SeatAvatar extends StatelessWidget {
         height: size,
         alignment: Alignment.center,
         decoration: BoxDecoration(
-          color: partySeatColors[seat % partySeatColors.length],
+          color: seatColor(seat, fixed: color),
           shape: BoxShape.circle,
         ),
         child: Text(

@@ -84,11 +84,14 @@ int pointsForPlace(int place) => switch (place) {
 };
 
 class Member {
-  Member(this.id, this.token, this.name);
+  Member(this.id, this.token, this.name, this.color);
 
   final String id;
   final String token;
   String name;
+
+  /// Avatar color index, kept for as long as the member stays in the room.
+  final int color;
   Connection? connection;
   int points = 0;
   bool get online => connection != null;
@@ -129,6 +132,9 @@ class Match {
   final List<String?> seats;
   final TableRuntime table;
   final List<String> names = [];
+
+  /// Avatar color index per seat.
+  final List<int> colors = [];
   bool recorded = false;
 
   int? seatOf(String memberId) {
@@ -213,6 +219,7 @@ class Room {
             'id': x.id,
             'name': x.name,
             'online': x.online,
+            'color': x.color,
             'points': x.points,
             'playing': m != null && !m.table.isOver && m.seatOf(x.id) != null,
           },
@@ -243,6 +250,7 @@ class Room {
       'mode': m.mode.id,
       'over': t.isOver,
       'notes': notes,
+      'colors': [for (var i = 0; i < s.count; i++) m.colors[s.toReal(i)]],
     };
     switch (t) {
       case ShedTable():
@@ -323,6 +331,15 @@ class Room {
       for (var i = 0; i < setup.bots; i++) '${_botNames[i]} (bot)',
     ];
     final humans = {for (var i = 0; i < people.length; i++) i};
+    // People keep their lobby color; bots take the free ones.
+    final free = [
+      for (var i = 0; i < maxMembers; i++)
+        if (!people.any((p) => p.color == i)) i,
+    ];
+    final colors = [
+      for (final p in people) p.color,
+      for (var i = 0; i < setup.bots; i++) free[i % free.length],
+    ];
     final TableRuntime table;
     switch (mode.kind) {
       case GameKind.shedding:
@@ -366,7 +383,9 @@ class Room {
           rng: rng,
         );
     }
-    final m = Match(++_matchSerial, mode, seats, table)..names.addAll(names);
+    final m = Match(++_matchSerial, mode, seats, table)
+      ..names.addAll(names)
+      ..colors.addAll(colors);
     match = m;
     finished = false;
     table.onChange = () => _onMatchChange(m);
@@ -542,8 +561,16 @@ class Lobby {
       if (match != null && seat != null) c.send(r.matchView(match, seat));
     }
 
-    Member newMember(Room r) =>
-        Member(_code(10, _codeChars), _code(24, _codeChars), r.randomName());
+    Member newMember(Room r) => Member(
+      _code(10, _codeChars),
+      _code(24, _codeChars),
+      r.randomName(),
+      // The first color nobody in the room is using.
+      List.generate(maxMembers, (i) => i).firstWhere(
+        (i) => !r.members.any((x) => x.color == i),
+        orElse: () => r.members.length % maxMembers,
+      ),
+    );
 
     void onMessage(Map<String, dynamic> msg) {
       final r = room;

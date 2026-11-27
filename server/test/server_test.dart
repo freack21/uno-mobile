@@ -197,6 +197,17 @@ void main() {
       expect((b['view']['players'] as List).first['name'], 'Budi');
       expect((a['view']['players'] as List).length, 2 + bots);
 
+      // Everyone keeps their lobby color, the same on every screen.
+      final lobby = cs[0].inbox.lastWhere((m) => isType(m, 'room'));
+      final lobbyColors = [
+        for (final x in lobby['members'] as List) x['color'] as int,
+      ];
+      final ca = (a['colors'] as List).cast<int>();
+      final cb = (b['colors'] as List).cast<int>();
+      expect(ca.take(2), lobbyColors);
+      expect(ca.toSet().length, 2 + bots, reason: 'bots get free colors');
+      expect([...cb.skip(cb.length - 1), ...cb.take(cb.length - 1)], ca);
+
       // Nobody acts: idle turns are played for them until the end.
       final done = await cs[0].next(
         (m) => isType(m, 'room') && (m['history'] as List).isNotEmpty,

@@ -243,7 +243,7 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
                 value: v,
                 minHeight: 6,
                 backgroundColor: Palette.surfaceHigh,
-                color: partySeatColors[p.seat % partySeatColors.length],
+                color: seatColor(p.seat),
               ),
             ),
           ),

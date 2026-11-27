@@ -551,6 +551,7 @@ class _Players extends StatelessWidget {
                     opacity: m['online'] == true ? 1 : 0.4,
                     child: SeatAvatar(
                       seat: i,
+                      color: m['color'] as int?,
                       name: m['name'] as String,
                       size: 34,
                     ),
@@ -1039,6 +1040,7 @@ class _OnlineMatchScreenState extends State<OnlineMatchScreen> {
     final m = _session.match!;
     _matchId = m['id'] as int;
     _mode = modeById(m['mode'] as String?);
+    seatColorMap = (m['colors'] as List?)?.cast<int>();
     switch (m['kind']) {
       case 'shed':
         _shed = GameController.online(
@@ -1057,6 +1059,7 @@ class _OnlineMatchScreenState extends State<OnlineMatchScreen> {
   @override
   void dispose() {
     _session.removeListener(_onSession);
+    seatColorMap = null;
     _shed?.dispose();
     _exact?.dispose();
     _hold?.dispose();
