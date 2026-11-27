@@ -1,11 +1,12 @@
 # syntax=docker/dockerfile:1
-# Last Card PWA: Flutter web build served by unprivileged nginx.
+# Last Card: the PWA (target "web", the default: Flutter web build served by
+# unprivileged nginx) and the multiplayer server (target "server").
 # Base images are build args so `setup.sh deploy --mirror` can switch to
 # mirror.gcr.io when Docker Hub rate-limits the server.
 ARG DEBIAN_IMAGE=debian:bookworm-slim
 ARG NGINX_IMAGE=nginx:stable-alpine
 
-FROM ${DEBIAN_IMAGE} AS build
+FROM ${DEBIAN_IMAGE} AS sdk
 ARG FLUTTER_VERSION=3.50.1
 RUN apt-get update \
  && apt-get install -y --no-install-recommends ca-certificates curl git unzip xz-utils \
@@ -21,10 +22,27 @@ WORKDIR /app
 COPY pubspec.yaml pubspec.lock ./
 COPY packages ./packages
 RUN flutter pub get
+COPY server/pubspec.yaml server/pubspec.lock ./server/
+RUN cd server && dart pub get
 COPY . .
+
+FROM sdk AS server-build
+RUN mkdir -p /out && cd server && dart compile exe bin/server.dart -o /out/server
+
+FROM ${DEBIAN_IMAGE} AS server
+RUN useradd --system --uid 10001 --no-create-home lastcard
+COPY --from=server-build /out/server /app/server
+USER lastcard
+ENV PORT=8081
+EXPOSE 8081
+HEALTHCHECK --interval=30s --timeout=5s --start-period=5s --retries=3 \
+  CMD ["/app/server", "--healthcheck"]
+ENTRYPOINT ["/app/server"]
+
+FROM sdk AS build
 RUN tool/build_web.sh /
 
-FROM ${NGINX_IMAGE}
+FROM ${NGINX_IMAGE} AS web
 COPY deploy/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY --from=build /app/build/web /usr/share/nginx/html
 USER nginx

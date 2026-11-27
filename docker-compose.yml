@@ -4,6 +4,7 @@ services:
   web:
     build:
       context: .
+      target: web
       args:
         DEBIAN_IMAGE: ${DEBIAN_IMAGE:-debian:bookworm-slim}
         NGINX_IMAGE: ${NGINX_IMAGE:-nginx:stable-alpine}
@@ -12,6 +13,8 @@ services:
       SERVICE_URL_WEB_8080: /
     expose:
       - "8080"
+    depends_on:
+      - server
     restart: unless-stopped
     init: true
     healthcheck:
@@ -19,4 +22,22 @@ services:
       interval: 30s
       timeout: 5s
       start_period: 10s
+      retries: 3
+
+  # Multiplayer rooms over WebSocket; nginx in "web" proxies /ws here.
+  server:
+    build:
+      context: .
+      target: server
+      args:
+        DEBIAN_IMAGE: ${DEBIAN_IMAGE:-debian:bookworm-slim}
+    expose:
+      - "8081"
+    restart: unless-stopped
+    init: true
+    healthcheck:
+      test: ["CMD", "/app/server", "--healthcheck"]
+      interval: 30s
+      timeout: 5s
+      start_period: 5s
       retries: 3

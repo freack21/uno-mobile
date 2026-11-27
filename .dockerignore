@@ -1,9 +1,9 @@
 .git
 .github
-.dart_tool
+**/.dart_tool
 .idea
 .vscode
-build
+**/build
 android
 ios
 deploy/coolify
