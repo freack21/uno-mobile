@@ -165,7 +165,7 @@ class _ModeScreenState extends State<ModeScreen> {
                     onChanged: (v) => _setRules(rules.copyWith(targetScore: v)),
                   ),
                 ),
-              if (m.isCustom) ..._customRows(),
+              if (m.isCustom) ...customRuleRows(rules, _setRules),
             ],
           ),
           const SizedBox(height: 28),
@@ -206,104 +206,105 @@ class _ModeScreenState extends State<ModeScreen> {
       ),
     );
   }
+}
 
-  List<Widget> _customRows() {
-    final r = rules;
-    return [
-      _Row(
-        label: 'Deck',
-        child: _Segments<DeckType>(
-          values: DeckType.values,
-          selected: r.deck,
-          label: (d) => d.label,
-          onChanged: (d) => _setRules(r.copyWith(deck: d)),
+/// The rule editor for Custom mode; read-only when [onChanged] is null.
+List<Widget> customRuleRows(RuleSet r, ValueChanged<RuleSet>? onChanged) {
+  void set(RuleSet next) => onChanged?.call(next);
+  return [
+    _Row(
+      label: 'Deck',
+      child: _Segments<DeckType>(
+        values: DeckType.values,
+        selected: r.deck,
+        label: (d) => d.label,
+        onChanged: (d) => set(r.copyWith(deck: d)),
+      ),
+    ),
+    _Row(
+      label: 'Format',
+      child: _Segments<MatchFormat>(
+        values: r.teams
+            ? const [MatchFormat.single, MatchFormat.points]
+            : MatchFormat.values,
+        selected: r.format,
+        label: (f) => switch (f) {
+          MatchFormat.single => 'Single',
+          MatchFormat.points => 'Points',
+          MatchFormat.elimination => 'Elim.',
+        },
+        onChanged: (f) => set(r.copyWith(format: f)),
+      ),
+    ),
+    _Row(
+      label: 'Stacking',
+      child: _Segments<StackRule>(
+        values: StackRule.values,
+        selected: r.stack,
+        label: (s) => switch (s) {
+          StackRule.off => 'Off',
+          StackRule.same => 'Same',
+          StackRule.escalating => 'Higher',
+        },
+        onChanged: (s) => set(r.copyWith(stack: s)),
+      ),
+    ),
+    _Toggle(
+      'Seven-O',
+      '7 swaps hands, 0 passes them on',
+      r.sevenZero,
+      (v) => set(r.copyWith(sevenZero: v)),
+    ),
+    _Toggle(
+      'Jump-In',
+      'Play an identical card out of turn',
+      r.jumpIn,
+      (v) => set(r.copyWith(jumpIn: v)),
+    ),
+    _Toggle(
+      'Doubles',
+      'Play same-number cards together',
+      r.combos,
+      (v) => set(r.copyWith(combos: v)),
+    ),
+    _Toggle(
+      'Draw until playable',
+      'Keep drawing until a card fits',
+      r.drawUntilPlayable,
+      (v) => set(r.copyWith(drawUntilPlayable: v)),
+    ),
+    _Toggle(
+      'Challenge Wild +4',
+      'Call out bluffs: 4 for them or 6 for you',
+      r.challengeWild4,
+      (v) => set(r.copyWith(challengeWild4: v)),
+    ),
+    _Toggle(
+      'Turn timer',
+      '8 seconds per turn, or draw 2',
+      r.turnSeconds != null,
+      (v) => set(r.copyWith(turnSeconds: () => v ? 8 : null)),
+    ),
+    _Toggle(
+      '25-card knockout',
+      'Reach 25 cards and you are out',
+      r.handLimit != null,
+      (v) => set(r.copyWith(handLimit: () => v ? 25 : null)),
+    ),
+    _Toggle(
+      'Teams 2v2',
+      'Partners sit opposite and share the win',
+      r.teams,
+      (v) => set(
+        r.copyWith(
+          teams: v,
+          format: v && r.format == MatchFormat.elimination
+              ? MatchFormat.single
+              : null,
         ),
       ),
-      _Row(
-        label: 'Format',
-        child: _Segments<MatchFormat>(
-          values: r.teams
-              ? const [MatchFormat.single, MatchFormat.points]
-              : MatchFormat.values,
-          selected: r.format,
-          label: (f) => switch (f) {
-            MatchFormat.single => 'Single',
-            MatchFormat.points => 'Points',
-            MatchFormat.elimination => 'Elim.',
-          },
-          onChanged: (f) => _setRules(r.copyWith(format: f)),
-        ),
-      ),
-      _Row(
-        label: 'Stacking',
-        child: _Segments<StackRule>(
-          values: StackRule.values,
-          selected: r.stack,
-          label: (s) => switch (s) {
-            StackRule.off => 'Off',
-            StackRule.same => 'Same',
-            StackRule.escalating => 'Higher',
-          },
-          onChanged: (s) => _setRules(r.copyWith(stack: s)),
-        ),
-      ),
-      _Toggle(
-        'Seven-O',
-        '7 swaps hands, 0 passes them on',
-        r.sevenZero,
-        (v) => _setRules(r.copyWith(sevenZero: v)),
-      ),
-      _Toggle(
-        'Jump-In',
-        'Play an identical card out of turn',
-        r.jumpIn,
-        (v) => _setRules(r.copyWith(jumpIn: v)),
-      ),
-      _Toggle(
-        'Doubles',
-        'Play same-number cards together',
-        r.combos,
-        (v) => _setRules(r.copyWith(combos: v)),
-      ),
-      _Toggle(
-        'Draw until playable',
-        'Keep drawing until a card fits',
-        r.drawUntilPlayable,
-        (v) => _setRules(r.copyWith(drawUntilPlayable: v)),
-      ),
-      _Toggle(
-        'Challenge Wild +4',
-        'Call out bluffs: 4 for them or 6 for you',
-        r.challengeWild4,
-        (v) => _setRules(r.copyWith(challengeWild4: v)),
-      ),
-      _Toggle(
-        'Turn timer',
-        '8 seconds per turn, or draw 2',
-        r.turnSeconds != null,
-        (v) => _setRules(r.copyWith(turnSeconds: () => v ? 8 : null)),
-      ),
-      _Toggle(
-        '25-card knockout',
-        'Reach 25 cards and you are out',
-        r.handLimit != null,
-        (v) => _setRules(r.copyWith(handLimit: () => v ? 25 : null)),
-      ),
-      _Toggle(
-        'Teams 2v2',
-        'You and the bot opposite you share the win',
-        r.teams,
-        (v) => _setRules(
-          r.copyWith(
-            teams: v,
-            format: v && r.format == MatchFormat.elimination
-                ? MatchFormat.single
-                : null,
-          ),
-        ),
-      ),
-    ];
-  }
+    ),
+  ];
 }
 
 class _Panel extends StatelessWidget {
@@ -363,12 +364,13 @@ class _Toggle extends StatelessWidget {
   final String title;
   final String subtitle;
   final bool value;
-  final ValueChanged<bool> onChanged;
+  final ValueChanged<bool>? onChanged;
 
   @override
   Widget build(BuildContext context) {
+    final change = onChanged;
     return InkWell(
-      onTap: () => onChanged(!value),
+      onTap: change == null ? null : () => change(!value),
       child: Padding(
         padding: const EdgeInsets.symmetric(vertical: 10),
         child: Row(
@@ -401,7 +403,7 @@ class _Segments<T> extends StatelessWidget {
   final List<T> values;
   final T selected;
   final String Function(T) label;
-  final ValueChanged<T> onChanged;
+  final ValueChanged<T>? onChanged;
 
   @override
   Widget build(BuildContext context) {
@@ -416,7 +418,7 @@ class _Segments<T> extends StatelessWidget {
         children: [
           for (final v in values)
             GestureDetector(
-              onTap: () => onChanged(v),
+              onTap: onChanged == null ? null : () => onChanged!(v),
               child: AnimatedContainer(
                 duration: const Duration(milliseconds: 180),
                 padding: const EdgeInsets.symmetric(

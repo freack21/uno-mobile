@@ -230,6 +230,55 @@ void main() {
     });
   }
 
+  test('custom rules are checked and used for the match', () async {
+    final (cs, _, _) = await room(1);
+    Map<String, Object?> rules({
+      bool teams = false,
+      int format = 0,
+      int? turnSeconds,
+    }) => {
+      'deck': 1,
+      'format': format,
+      'target': 500,
+      'stack': 1,
+      'sevenZero': true,
+      'jumpIn': false,
+      'drawUntil': false,
+      'challenge': true,
+      'combos': true,
+      'teams': teams,
+      'turnSeconds': turnSeconds,
+      'handLimit': null,
+    };
+    cs[0].send({
+      't': 'setup',
+      'mode': 'custom',
+      'custom': rules(turnSeconds: 1),
+    });
+    expect(
+      (await cs[0].next((m) => isType(m, 'error')))['msg'],
+      contains('Invalid'),
+    );
+    cs[0].send({'t': 'setup', 'custom': rules(teams: true, format: 2)});
+    await cs[0].next((m) => isType(m, 'error'), from: cs[0].inbox.length);
+    cs[0].send({'t': 'setup', 'custom': rules(turnSeconds: 8), 'bots': 1});
+    await cs[0].next(
+      (m) =>
+          isType(m, 'room') &&
+          m['setup']['mode'] == 'custom' &&
+          m['setup']['custom']['turnSeconds'] == 8,
+    );
+    cs[0].send({'t': 'start'});
+    final b = await cs[1].next((m) => isType(m, 'match'));
+    final r = b['view']['rules'] as Map<String, dynamic>;
+    expect(r['deck'], 1);
+    expect(r['combos'], isTrue);
+    expect(r['turnSeconds'], 8);
+    for (final c in cs) {
+      await c.close();
+    }
+  });
+
   test('reconnecting with the token returns to the same seat', () async {
     final (cs, id, pass) = await room(1);
     final w = cs[1].inbox.firstWhere((m) => isType(m, 'welcome'));

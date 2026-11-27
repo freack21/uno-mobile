@@ -675,11 +675,19 @@ class Lobby {
         }
         final custom = msg['custom'] as Map<String, dynamic>?;
         if (custom != null) {
+          RuleSet? rules;
           try {
-            s.custom = rulesFromJson(custom);
-          } catch (_) {
+            rules = rulesFromJson(custom);
+          } catch (_) {}
+          // Only the choices the rule editor offers.
+          if (rules == null ||
+              ![250, 500, 1000].contains(rules.targetScore) ||
+              ![null, 8].contains(rules.turnSeconds) ||
+              ![null, 25].contains(rules.handLimit) ||
+              (rules.teams && rules.format == MatchFormat.elimination)) {
             return error('Invalid custom rules');
           }
+          s.custom = rules;
         }
         r.broadcastRoom();
       case 'start':

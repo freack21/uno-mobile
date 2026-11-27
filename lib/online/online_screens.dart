@@ -1,6 +1,7 @@
 import 'package:flutter/services.dart';
 import 'package:last_card_core/hold_card.dart';
 import 'package:last_card_core/modes.dart';
+import 'package:last_card_core/protocol.dart';
 import 'package:last_card_core/rules.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -9,6 +10,7 @@ import '../ui/game_controller.dart';
 import '../ui/game_screen.dart';
 import '../ui/guide_screen.dart';
 import '../ui/hold_card_screen.dart';
+import '../ui/mode_screen.dart' show customRuleRows;
 import '../ui/party_widgets.dart';
 import '../ui/theme.dart';
 import 'browser.dart';
@@ -17,11 +19,8 @@ import 'session.dart';
 
 OnlineSession get _session => OnlineSession.instance;
 
-/// Modes available online (Custom needs its own rule editor).
-List<GameMode> get onlineModes => [
-  for (final m in gameModes)
-    if (!m.isCustom) m,
-];
+/// Modes available online: all of them.
+List<GameMode> get onlineModes => gameModes;
 
 GameMode modeById(String? id) =>
     gameModes.firstWhere((m) => m.id == id, orElse: () => gameModes.first);
@@ -628,6 +627,9 @@ class _SetupCard extends StatelessWidget {
     final mode = modeById(setup['mode'] as String?);
     final bots = setup['bots'] as int;
     final difficulty = Difficulty.values[setup['difficulty'] as int];
+    final custom = mode.isCustom
+        ? rulesFromJson(setup['custom'] as Map<String, dynamic>)
+        : null;
     void set(Map<String, Object?> change) => _session.setup(change);
 
     Widget row(String label, Widget child) => Padding(
@@ -764,6 +766,21 @@ class _SetupCard extends StatelessWidget {
                 (v) => set({'target': v}),
               ),
             ),
+          if (mode.isCustom) ...[
+            if (custom!.format == MatchFormat.points)
+              row(
+                'Target',
+                segments(
+                  const [250, 500, 1000],
+                  custom.targetScore,
+                  (v) => '$v',
+                  (v) => set({
+                    'custom': rulesToJson(custom.copyWith(targetScore: v)),
+                  }),
+                ),
+              ),
+            ..._customRules(custom, host),
+          ],
           if (mode.kind == GameKind.holdCard)
             row(
               'Guess',
@@ -806,6 +823,18 @@ class _SetupCard extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Custom mode: the host edits the rules; everyone else sees them.
+List<Widget> _customRules(RuleSet rules, bool host) {
+  void set(RuleSet r) => _session.setup({'custom': rulesToJson(r)});
+  return [
+    const SizedBox(height: 4),
+    IgnorePointer(
+      ignoring: !host,
+      child: Column(children: [...customRuleRows(rules, host ? set : null)]),
+    ),
+  ];
 }
 
 class _ModePicker extends StatelessWidget {
