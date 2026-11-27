@@ -524,6 +524,23 @@ void main() {
     });
   });
 
+  test('event texts agree with "You"', () {
+    final skip = card(CardColor.red, CardKind.skip);
+    final g = setup(
+      const RuleSet(),
+      [
+        [num(CardColor.red, 1), num(CardColor.red, 2)],
+        [num(CardColor.red, 3), num(CardColor.red, 4)],
+        [skip, num(CardColor.red, 5)],
+      ],
+      top: num(CardColor.red, 9),
+      current: 2,
+    );
+    g.play(2, skip);
+    expect(g.events.last.text, endsWith('were skipped'));
+    expect(g.players[1].verb('was', 'were'), 'was');
+  });
+
   group('doubles', () {
     const doubles = RuleSet(combos: true);
 

@@ -21,6 +21,10 @@ class Player {
   bool calledLast = false;
 
   int get team => seat % 2;
+
+  /// Verb agreeing with the name: "Kira takes" but "You take".
+  String verb(String thirdPerson, String plain) =>
+      isHuman ? plain : thirdPerson;
 }
 
 enum EventType {
@@ -503,7 +507,7 @@ class Game {
       _drawCards(ch.offender, 4);
       _log(
         EventType.challenge,
-        'Challenge won! ${players[ch.offender].name} bluffed and draws 4',
+        'Challenge won! ${players[ch.offender].name} bluffed and ${players[ch.offender].verb('draws', 'draw')} 4',
         seat: ch.offender,
         count: 4,
       );
@@ -513,7 +517,7 @@ class Game {
       _drawCards(seat, 6);
       _log(
         EventType.challenge,
-        'Challenge failed! ${players[seat].name} draws 6',
+        'Challenge failed! ${players[seat].name} ${players[seat].verb('draws', 'draw')} 6',
         seat: seat,
         count: 6,
       );
@@ -631,7 +635,7 @@ class Game {
     _drawCards(seat, n);
     _log(
       EventType.penalty,
-      '${players[seat].name} takes +$n',
+      '${players[seat].name} ${players[seat].verb('takes', 'take')} +$n',
       seat: seat,
       count: n,
     );
@@ -686,7 +690,7 @@ class Game {
     if (vulnerable == seat) vulnerable = null;
     _log(
       EventType.knockout,
-      '${p.name} hit $limit cards and is out!',
+      '${p.name} hit $limit cards and ${p.verb('is', 'are')} out!',
       seat: seat,
     );
     final remaining = activePlayers;
@@ -738,8 +742,11 @@ class Game {
     }
   }
 
-  void _logSkip(int seat) =>
-      _log(EventType.skip, '${players[seat].name} was skipped', seat: seat);
+  void _logSkip(int seat) => _log(
+    EventType.skip,
+    '${players[seat].name} ${players[seat].verb('was', 'were')} skipped',
+    seat: seat,
+  );
 
   void _endRound(int winner) {
     if (isRoundOver) return;
@@ -771,7 +778,7 @@ class Game {
           knocked = k.seat;
           _log(
             EventType.knockout,
-            '${k.name} held the most cards and is out!',
+            '${k.name} held the most cards and ${k.verb('is', 'are')} out!',
             seat: k.seat,
           );
         }
@@ -791,8 +798,10 @@ class Game {
     _log(
       EventType.roundEnd,
       rules.teams
-          ? 'Team ${w.name} wins the round!'
-          : '${w.name} wins the round!',
+          ? (isTeammate(winner, 0) || w.isHuman
+                ? 'Your team wins the round!'
+                : 'Team ${w.name} wins the round!')
+          : '${w.name} ${w.verb('wins', 'win')} the round!',
       seat: winner,
     );
   }
