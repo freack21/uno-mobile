@@ -7,6 +7,7 @@ import 'game_screen.dart';
 import 'guide_screen.dart';
 import 'mode_screen.dart';
 import 'playing_card.dart';
+import 'sfx.dart';
 import 'theme.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -15,11 +16,11 @@ class HomeScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: SafeArea(
       // The list scrolls all the way to the bottom edge (behind the home
       // indicator); only its end is padded to stay reachable.
-        child: CustomScrollView(
+      body: SafeArea(
         bottom: false,
+        child: CustomScrollView(
           slivers: [
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
@@ -57,6 +58,7 @@ class _Hero extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
+        Align(alignment: Alignment.centerRight, child: SoundButton()),
         SizedBox(
           height: 150,
           child: Stack(
@@ -201,6 +203,24 @@ class _ModeTile extends StatelessWidget {
             ],
           ),
         ),
+      ),
+    );
+  }
+}
+
+/// Speaker icon that turns sound effects on and off.
+class SoundButton extends StatelessWidget {
+  const SoundButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<bool>(
+      valueListenable: soundOn,
+      builder: (context, on, _) => IconButton(
+        tooltip: on ? 'Mute sounds' : 'Turn sounds on',
+        onPressed: () => setSoundOn(!on),
+        icon: Icon(on ? Icons.volume_up_rounded : Icons.volume_off_rounded),
+        color: on ? Palette.text : Palette.muted,
       ),
     );
   }

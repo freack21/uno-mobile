@@ -9,6 +9,8 @@ import 'package:uno_mobile/ui/guide_screen.dart';
 import 'package:uno_mobile/ui/mode_screen.dart';
 import 'package:uno_mobile/ui/theme.dart';
 import 'package:uno_mobile/ui/update_toast.dart';
+import 'package:uno_mobile/ui/home_screen.dart';
+import 'package:uno_mobile/ui/sfx.dart';
 import 'package:uno_mobile/ui/app_update.dart';
 
 bool toastHidden(WidgetTester tester) => tester
@@ -211,6 +213,20 @@ void main() {
     await tester.tap(find.text('Later'));
     await tester.pumpAndSettle();
     expect(toastHidden(tester), isTrue);
+  });
+
+  testWidgets('sound button mutes and unmutes', (tester) async {
+    addTearDown(() => setSoundOn(true));
+    await tester.pumpWidget(wrap(const Scaffold(body: SoundButton())));
+    expect(soundOn.value, isTrue);
+    expect(find.byIcon(Icons.volume_up_rounded), findsOneWidget);
+    await tester.tap(find.byType(SoundButton));
+    await tester.pump();
+    expect(soundOn.value, isFalse);
+    expect(find.byIcon(Icons.volume_off_rounded), findsOneWidget);
+    await tester.tap(find.byType(SoundButton));
+    await tester.pump();
+    expect(soundOn.value, isTrue);
   });
 
   testWidgets('basics guide renders', (tester) async {

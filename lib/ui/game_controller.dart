@@ -8,6 +8,7 @@ import '../game/cards.dart';
 import '../game/game.dart';
 import '../game/modes.dart';
 import '../game/rules.dart';
+import 'sfx.dart';
 import 'theme.dart';
 
 const botNames = ['Kira', 'Bimo', 'Sari', 'Dodo', 'Rara'];
@@ -54,6 +55,7 @@ class GameController extends ChangeNotifier {
   bool _disposed = false;
   bool _paused = false;
   bool _humanClockRunning = false;
+  bool _wasMyTurn = false;
   int _seenEvent = 0;
 
   /// When the human's Speed clock runs out, if running.
@@ -163,6 +165,8 @@ class GameController extends ChangeNotifier {
     _dealSeats = [for (var i = 0; i < rules.handSize; i++) ...seats];
     dealt = 0;
     intro = IntroStep.shuffle;
+    _wasMyTurn = false;
+    playSfx(Sfx.shuffle);
     notifyListeners();
     _runIntro();
   }
@@ -183,10 +187,12 @@ class GameController extends ChangeNotifier {
         final ms = (2600 / _dealSeats.length).clamp(55, 110).round();
         _introTimer = Timer.periodic(Duration(milliseconds: ms), (t) {
           dealt++;
+          playSfx(Sfx.deal);
           if (dealt >= _dealSeats.length) {
             t.cancel();
             _introTimer = Timer(const Duration(milliseconds: 500), () {
               intro = IntroStep.flip;
+              playSfx(Sfx.flip);
               notifyListeners();
               _runIntro();
             });
@@ -196,6 +202,7 @@ class GameController extends ChangeNotifier {
       case IntroStep.flip:
         _introTimer = Timer(const Duration(milliseconds: 1100), () {
           intro = IntroStep.order;
+          playSfx(Sfx.start);
           notifyListeners();
           _runIntro();
         });
@@ -277,6 +284,8 @@ class GameController extends ChangeNotifier {
       return;
     }
     _scheduleJumpIns();
+    if (isMyTurn && !_wasMyTurn) playSfx(Sfx.turn);
+    _wasMyTurn = isMyTurn;
     if (game.current == human) {
       _startClock();
     } else {
@@ -378,13 +387,39 @@ class GameController extends ChangeNotifier {
   /// Posts the newest banner; returns whether one was posted.
   bool _readEvents() {
     TableBanner? next;
+    final sounds = <Sfx>{};
     for (final e in game.events) {
       if (e.id <= _seenEvent) continue;
       next = _bannerFor(e) ?? next;
+      final sound = _soundFor(e);
+      if (sound != null) sounds.add(sound);
     }
+    sounds.forEach(playSfx);
     if (game.events.isNotEmpty) _seenEvent = game.events.last.id;
     if (next != null) banner = next;
     return next != null;
+  }
+
+  Sfx? _soundFor(GameEvent e) {
+    final card = e.card;
+    return switch (e.type) {
+      EventType.play || EventType.jumpIn =>
+        card != null && game.face(card).isWild ? Sfx.wild : Sfx.card,
+      EventType.draw => Sfx.draw,
+      EventType.penalty || EventType.challenge => Sfx.penalty,
+      EventType.skip => Sfx.skip,
+      EventType.reverse => Sfx.reverse,
+      EventType.swap || EventType.rotate || EventType.discardAll => Sfx.swap,
+      EventType.flip => Sfx.flip,
+      EventType.lastCall => Sfx.last,
+      EventType.caught => Sfx.caught,
+      EventType.knockout => Sfx.knockout,
+      EventType.timeout => Sfx.nope,
+      EventType.roundEnd =>
+        e.seat == human || (e.seat != null && game.isTeammate(human, e.seat!))
+            ? Sfx.win
+            : Sfx.lose,
+    };
   }
 
   TableBanner? _bannerFor(GameEvent e) {

@@ -11,6 +11,7 @@ import '../game/rules.dart';
 import 'game_controller.dart';
 import 'guide_screen.dart';
 import 'playing_card.dart';
+import 'sfx.dart';
 import 'theme.dart';
 
 const _seatColors = [
@@ -94,6 +95,7 @@ class _GameScreenState extends State<GameScreen> {
     if (_comboValid) {
       final i = _combo.indexWhere((x) => x.id == card.id);
       HapticFeedback.selectionClick();
+      playSfx(Sfx.tick);
       if (i == 0) {
         setState(() => _combo = []);
       } else if (i > 0) {
@@ -110,11 +112,13 @@ class _GameScreenState extends State<GameScreen> {
     final jump = !c.isMyTurn && g.canJumpIn(GameController.human, card);
     if (!jump && !g.isPlayable(GameController.human, card)) {
       HapticFeedback.selectionClick();
+      playSfx(Sfx.nope);
       _flash(c.isMyTurn ? _whyNot(card) : 'Wait for your turn');
       return;
     }
     if (!jump && g.comboPartners(GameController.human, card).isNotEmpty) {
       HapticFeedback.selectionClick();
+      playSfx(Sfx.tick);
       setState(() => _combo = [card]);
       return;
     }
@@ -245,7 +249,20 @@ class _GameScreenState extends State<GameScreen> {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               Text('Paused', style: font(24, weight: 700)),
-              const SizedBox(height: 16),
+              const SizedBox(height: 8),
+              ValueListenableBuilder<bool>(
+                valueListenable: soundOn,
+                builder: (context, on, _) => SwitchListTile(
+                  contentPadding: EdgeInsets.zero,
+                  title: Text('Sound effects', style: font(16, weight: 600)),
+                  secondary: Icon(
+                    on ? Icons.volume_up_rounded : Icons.volume_off_rounded,
+                  ),
+                  value: on,
+                  onChanged: setSoundOn,
+                ),
+              ),
+              const SizedBox(height: 8),
               FilledButton(
                 onPressed: () => Navigator.pop(context),
                 child: const Text('Resume'),
