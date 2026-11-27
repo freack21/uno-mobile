@@ -16,7 +16,10 @@ class HomeScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       body: SafeArea(
+      // The list scrolls all the way to the bottom edge (behind the home
+      // indicator); only its end is padded to stay reachable.
         child: CustomScrollView(
+        bottom: false,
           slivers: [
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 20, 20, 8),
@@ -29,7 +32,12 @@ class HomeScreen extends StatelessWidget {
               ),
             ),
             SliverPadding(
-              padding: const EdgeInsets.fromLTRB(16, 0, 16, 32),
+              padding: EdgeInsets.fromLTRB(
+                16,
+                0,
+                16,
+                32 + MediaQuery.paddingOf(context).bottom,
+              ),
               sliver: SliverList.separated(
                 itemCount: gameModes.length,
                 separatorBuilder: (_, _) => const SizedBox(height: 10),

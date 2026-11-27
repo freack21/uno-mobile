@@ -41,7 +41,12 @@ class GuideScreen extends StatelessWidget {
         ),
       ),
       body: ListView(
-        padding: const EdgeInsets.fromLTRB(20, 8, 20, 32),
+        padding: EdgeInsets.fromLTRB(
+          20,
+          8,
+          20,
+          32 + MediaQuery.paddingOf(context).bottom,
+        ),
         children: [
           if (m != null) ...[
             Text(m.tagline, style: font(17, weight: 500, color: Palette.muted)),
