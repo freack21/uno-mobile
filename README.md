@@ -40,12 +40,13 @@ Serve `build/web` over HTTPS (service workers need a secure context; `localhost`
 is fine for testing). `index.html`, `flutter_bootstrap.js` and `sw.js` should be
 served with `Cache-Control: no-cache`.
 
-### Deploying to GitHub Pages
+### Deploying
 
-`.github/workflows/deploy-web.yml` analyzes, tests, builds and deploys on every
-push to `main` (or manually via "Run workflow"). One-time setup: repository
-Settings → Pages → Source: **GitHub Actions**. The app is then served at
-`https://<owner>.github.io/uno-mobile/`.
+Production runs on Coolify at https://uno.refandi.my.id; see
+[docs/deploy-coolify.md](docs/deploy-coolify.md). CI (`.github/workflows/ci.yml`)
+tests every push and deploys green pushes to `main`. To run the production
+image locally: `docker build -t uno-mobile . && docker run --rm -p 8080:8080 uno-mobile`,
+then open http://localhost:8080.
 
 App icons are rendered from `tool/icon.svg` with `node tool/render_icons.js`
 (requires Playwright).
