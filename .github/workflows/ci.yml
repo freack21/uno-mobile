@@ -20,7 +20,11 @@ jobs:
           flutter-version: 3.50.1
           cache: true
 
-      - run: flutter pub get
+      - name: Resolve packages
+        run: |
+          flutter pub get
+          (cd packages/last_card_core && dart pub get)
+          (cd server && dart pub get)
       - run: dart format --output=none --set-exit-if-changed lib test packages server
       - run: flutter analyze
       - run: flutter test
@@ -28,7 +32,6 @@ jobs:
       - name: Server tests
         working-directory: server
         run: |
-          dart pub get
           dart analyze
           dart test
 
