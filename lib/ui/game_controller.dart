@@ -309,10 +309,12 @@ class GameController extends ChangeNotifier {
   String? challenge() =>
       _human(() => game.challengeWild(human), {'a': 'challenge'});
 
+  /// The LAST CARD button: call, catch or a false call (see
+  /// [Game.pressLast]).
   void callLast() {
+    if (inIntro) return;
     if (online) return send!({'a': 'last'});
-    game.callLast(human);
-    _afterChange();
+    if (game.pressLast(human) != LastPress.ignored) _afterChange();
   }
 
   bool catchBot(int seat) {
@@ -499,6 +501,7 @@ class GameController extends ChangeNotifier {
       EventType.flip => Sfx.flip,
       EventType.lastCall => Sfx.last,
       EventType.caught => Sfx.caught,
+      EventType.falseCall => Sfx.penalty,
       EventType.knockout => Sfx.knockout,
       EventType.timeout => Sfx.nope,
       EventType.roundEnd =>
@@ -546,6 +549,14 @@ class GameController extends ChangeNotifier {
         'LAST CARD!',
         subtitle: who,
         color: Palette.brand,
+      ),
+      EventType.falseCall => TableBanner(
+        e.id,
+        'WRONG CALL',
+        subtitle: you
+            ? 'Nobody is on one card · you draw 2'
+            : '$who called for nothing · draws 2',
+        color: you ? Palette.brand : null,
       ),
       EventType.caught => TableBanner(
         e.id,

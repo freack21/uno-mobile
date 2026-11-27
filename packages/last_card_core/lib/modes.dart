@@ -95,7 +95,8 @@ const basicsGuide = <GuideSection>[
   GuideSection('Last card!', [
     'When you are about to play your second-to-last card, tap LAST CARD (you can also tap it right after).',
     'If you forget and another player catches you before the next move, you draw 2.',
-    'Bots forget sometimes too — tap CATCH on their seat to make them draw 2.',
+    'Others forget too: when someone is on one card without calling, LAST CARD turns red — tap it (or CATCH on their seat) to make them draw 2.',
+    'Tapping LAST CARD when there is nothing to call or catch is a false call: you draw 2.',
   ]),
   GuideSection('Card points', [
     'Number cards: face value.',

@@ -110,9 +110,10 @@ class ShedTable extends TableRuntime {
   bool pass(int seat) => _act(seat, () => game.pass(seat));
   bool challenge(int seat) => _act(seat, () => game.challengeWild(seat));
 
+  /// The LAST CARD button: call, catch, or a false call that costs 2.
   bool callLast(int seat) {
-    if (!game.canCallLast(seat)) return false;
-    game.callLast(seat);
+    if (opening) return false;
+    if (game.pressLast(seat) == LastPress.ignored) return false;
     _afterChange();
     return true;
   }
@@ -193,6 +194,7 @@ class ShedTable extends TableRuntime {
       EventType.discardAll,
       EventType.lastCall,
       EventType.caught,
+      EventType.falseCall,
       EventType.challenge,
       EventType.knockout,
       EventType.jumpIn,

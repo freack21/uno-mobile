@@ -44,6 +44,23 @@ enum EventType {
   knockout,
   timeout,
   roundEnd,
+  // Added last: events travel by index.
+  falseCall,
+}
+
+/// What pressing LAST CARD did.
+enum LastPress {
+  /// Called for your own last card.
+  called,
+
+  /// Caught a player who forgot to call: they draw 2.
+  caught,
+
+  /// Nothing to call or catch: the presser draws 2.
+  wrong,
+
+  /// Already called, or out of the round: nothing happens.
+  ignored,
 }
 
 class GameEvent {
@@ -534,6 +551,30 @@ class Game {
     players[seat].calledLast = true;
     if (vulnerable == seat) vulnerable = null;
     _log(EventType.lastCall, '${players[seat].name}: "Last card!"', seat: seat);
+  }
+
+  /// The LAST CARD button: calls for [seat]'s own last card, or else catches
+  /// whoever forgot to call; with neither, it was a false call and [seat]
+  /// draws 2.
+  LastPress pressLast(int seat) {
+    final p = players[seat];
+    if (p.out || isRoundOver) return LastPress.ignored;
+    if (canCallLast(seat)) {
+      callLast(seat);
+      return LastPress.called;
+    }
+    final target = vulnerable;
+    if (target != null && catchPlayer(seat, target)) return LastPress.caught;
+    if (p.calledLast) return LastPress.ignored;
+    _drawCards(seat, 2);
+    _log(
+      EventType.falseCall,
+      '${p.name} called "Last card!" for nothing: +2',
+      seat: seat,
+      count: 2,
+    );
+    if (!isRoundOver && players[current].out) _advance(1);
+    return LastPress.wrong;
   }
 
   /// Returns true if [target] forgot to call and was caught.

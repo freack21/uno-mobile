@@ -1429,11 +1429,18 @@ class _StatusBar extends StatelessWidget {
     final g = c.game;
     final me = c.me;
     final myTurn = c.isMyTurn;
-    final canLast = !c.inIntro && g.canCallLast(GameController.human);
+    final playing = !c.inIntro && !g.isRoundOver && !me.out;
+    final canLast = playing && g.canCallLast(GameController.human);
+    // Someone else forgot to call: pressing now catches them.
+    final canCatch =
+        playing && g.vulnerable != null && g.vulnerable != GameController.human;
     final urgentLast =
+        canCatch ||
         canLast &&
-        (g.vulnerable == GameController.human ||
-            (myTurn && me.hand.length == 2 && g.playableCards(0).isNotEmpty));
+            (g.vulnerable == GameController.human ||
+                (myTurn &&
+                    me.hand.length == 2 &&
+                    g.playableCards(0).isNotEmpty));
 
     final text =
         hint ??
@@ -1504,8 +1511,11 @@ class _StatusBar extends StatelessWidget {
                   ),
                   const SizedBox(width: 8),
                 ],
+                // Always pressable while playing: a press with nothing to
+                // call or catch is a false call and costs 2 cards.
                 _LastButton(
-                  enabled: canLast,
+                  enabled: playing,
+                  active: canLast || canCatch,
                   urgent: urgentLast,
                   onTap: () {
                     HapticFeedback.mediumImpact();
@@ -1612,11 +1622,15 @@ class _ActionButton extends StatelessWidget {
 class _LastButton extends StatefulWidget {
   const _LastButton({
     required this.enabled,
+    required this.active,
     required this.urgent,
     required this.onTap,
   });
 
   final bool enabled;
+
+  /// There is something to call or catch: shown in red.
+  final bool active;
   final bool urgent;
   final VoidCallback onTap;
 
@@ -1630,6 +1644,18 @@ class _LastButtonState extends State<_LastButton>
     vsync: this,
     duration: const Duration(milliseconds: 700),
   );
+
+  /// When the last press happened; a quick second tap is ignored so a
+  /// double tap cannot cost 4 cards.
+  DateTime? _pressed;
+
+  void _tap() {
+    final now = DateTime.now();
+    final last = _pressed;
+    if (last != null && now.difference(last).inMilliseconds < 1200) return;
+    _pressed = now;
+    widget.onTap();
+  }
 
   @override
   void didUpdateWidget(_LastButton old) {
@@ -1652,18 +1678,19 @@ class _LastButtonState extends State<_LastButton>
   @override
   Widget build(BuildContext context) {
     final on = widget.enabled;
+    final hot = on && widget.active;
     return ScaleTransition(
       scale: Tween(
         begin: 1.0,
         end: 1.08,
       ).animate(CurvedAnimation(parent: _pulse, curve: Curves.easeInOut)),
       child: Material(
-        color: on ? Palette.brand : Palette.surfaceHigh,
+        color: hot ? Palette.brand : Palette.surfaceHigh,
         borderRadius: BorderRadius.circular(14),
-        elevation: on ? 4 : 0,
+        elevation: hot ? 4 : 0,
         child: InkWell(
           borderRadius: BorderRadius.circular(14),
-          onTap: on ? widget.onTap : null,
+          onTap: on ? _tap : null,
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             child: Text(
@@ -1671,7 +1698,11 @@ class _LastButtonState extends State<_LastButton>
               style: font(
                 14,
                 weight: 700,
-                color: on ? Colors.white : Palette.muted,
+                color: hot
+                    ? Colors.white
+                    : on
+                    ? Palette.text
+                    : Palette.muted,
               ),
             ),
           ),

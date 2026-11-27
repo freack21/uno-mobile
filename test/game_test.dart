@@ -400,6 +400,60 @@ void main() {
       expect(g2.vulnerable, isNull);
       expect(g2.catchPlayer(1, 0), isFalse);
     });
+
+    List<List<GameCard>> hands() => [
+      [num(CardColor.red, 1), num(CardColor.red, 2), num(CardColor.blue, 5)],
+      [num(CardColor.red, 3), num(CardColor.red, 4)],
+    ];
+
+    test('the button calls for your own last card', () {
+      final g = setup(const RuleSet(), [
+        [num(CardColor.red, 1), num(CardColor.red, 2)],
+        [num(CardColor.red, 3), num(CardColor.red, 4)],
+      ], top: num(CardColor.red, 9));
+      expect(g.pressLast(0), LastPress.called);
+      expect(g.players[0].calledLast, isTrue);
+      expect(g.events.last.type, EventType.lastCall);
+      // Pressing again changes nothing.
+      expect(g.pressLast(0), LastPress.ignored);
+      expect(g.players[0].hand.length, 2);
+    });
+
+    test('the button catches a player who forgot', () {
+      final g = setup(const RuleSet(), [
+        [num(CardColor.red, 1), num(CardColor.red, 2)],
+        [num(CardColor.red, 3), num(CardColor.red, 4), num(CardColor.red, 5)],
+      ], top: num(CardColor.red, 9));
+      g.play(0, g.players[0].hand.first);
+      expect(g.vulnerable, 0);
+      expect(g.pressLast(1), LastPress.caught);
+      expect(g.players[0].hand.length, 3);
+      expect(g.players[1].hand.length, 3);
+    });
+
+    test('a false call costs the presser 2 cards', () {
+      final g = setup(const RuleSet(), hands(), top: num(CardColor.red, 9));
+      // Not their turn with 2 cards, nobody on one card: nothing to call.
+      expect(g.pressLast(1), LastPress.wrong);
+      expect(g.players[1].hand.length, 4);
+      expect(g.events.last.type, EventType.falseCall);
+      expect(g.current, 0, reason: 'the turn does not change');
+      // Three cards on your own turn is no reason to call either.
+      expect(g.pressLast(0), LastPress.wrong);
+      expect(g.players[0].hand.length, 5);
+    });
+
+    test('the button does nothing once the round is over', () {
+      final g = setup(const RuleSet(), [
+        [num(CardColor.red, 1)],
+        [num(CardColor.red, 3), num(CardColor.red, 4)],
+      ], top: num(CardColor.red, 9));
+      g.callLast(0);
+      g.play(0, g.players[0].hand.first);
+      expect(g.isRoundOver, isTrue);
+      expect(g.pressLast(1), LastPress.ignored);
+      expect(g.players[1].hand.length, 2);
+    });
   });
 
   group('merciless', () {
