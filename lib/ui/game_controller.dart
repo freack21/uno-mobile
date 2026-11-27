@@ -12,6 +12,9 @@ import 'theme.dart';
 
 const botNames = ['Kira', 'Bimo', 'Sari', 'Dodo', 'Rara'];
 
+/// Steps of the round opening shown before anyone plays.
+enum IntroStep { shuffle, deal, flip, order }
+
 /// A short, loud announcement shown over the table.
 class TableBanner {
   const TableBanner(this.id, this.title, {this.subtitle, this.color});
@@ -60,6 +63,40 @@ class GameController extends ChangeNotifier {
   /// Bot currently "thinking" about its move, for the seat indicator.
   int? thinkingSeat;
 
+  /// Round opening (shuffle, deal, first card, turn order); null once play
+  /// has started. The engine has already dealt: this only paces the reveal.
+  IntroStep? intro;
+
+  /// Cards handed out so far during [IntroStep.deal].
+  int dealt = 0;
+  List<int> _dealSeats = const [];
+  Timer? _introTimer;
+
+  bool get inIntro => intro != null;
+
+  /// Seats in turn order, starting with the first player.
+  List<int> get turnOrder {
+    final order = <int>[game.current];
+    for (
+      var s = game.nextSeat(game.current);
+      s != game.current;
+      s = game.nextSeat(s)
+    ) {
+      order.add(s);
+    }
+    return order;
+  }
+
+  /// Seat receiving the [i]-th dealt card.
+  int dealSeatAt(int i) => _dealSeats[i];
+
+  /// Cards of [seat] that are on the table already (all of them after the deal).
+  int visibleCards(int seat) => switch (intro) {
+    IntroStep.shuffle => 0,
+    IntroStep.deal => _dealSeats.take(dealt).where((s) => s == seat).length,
+    _ => game.players[seat].hand.length,
+  };
+
   Player get me => game.players[human];
   bool get isMyTurn => game.current == human && !game.isRoundOver && !me.out;
 
@@ -80,7 +117,7 @@ class GameController extends ChangeNotifier {
     game = Game(rules: rules, players: players, rng: _rng);
     _seenEvent = game.events.isEmpty ? 0 : game.events.last.id;
     banner = null;
-    _afterChange();
+    _startIntro();
   }
 
   void restart() {
@@ -97,13 +134,84 @@ class GameController extends ChangeNotifier {
   void resume() {
     if (!_paused) return;
     _paused = false;
-    _afterChange();
+    if (inIntro) {
+      _runIntro();
+    } else {
+      _afterChange();
+    }
   }
 
   void nextRound() {
     if (game.phase != Phase.roundOver || humanOut) return;
     game.nextRound();
     _seenEvent = game.events.last.id;
+    _startIntro();
+  }
+
+  // ----------------------------------------------------------------- intro
+
+  void _startIntro() {
+    // Deal round-robin from the player after the dealer, like at a table.
+    final seats = [game.nextSeat(game.dealer)];
+    for (
+      var s = game.nextSeat(seats.first);
+      s != seats.first;
+      s = game.nextSeat(s)
+    ) {
+      seats.add(s);
+    }
+    _dealSeats = [for (var i = 0; i < rules.handSize; i++) ...seats];
+    dealt = 0;
+    intro = IntroStep.shuffle;
+    notifyListeners();
+    _runIntro();
+  }
+
+  /// Schedules the next intro beat from the current step (also on resume).
+  void _runIntro() {
+    _introTimer?.cancel();
+    if (_disposed || _paused) return;
+    switch (intro) {
+      case IntroStep.shuffle:
+        _introTimer = Timer(const Duration(milliseconds: 1500), () {
+          intro = IntroStep.deal;
+          notifyListeners();
+          _runIntro();
+        });
+      case IntroStep.deal:
+        // About 2.6 s for the whole deal, whatever the table size.
+        final ms = (2600 / _dealSeats.length).clamp(55, 110).round();
+        _introTimer = Timer.periodic(Duration(milliseconds: ms), (t) {
+          dealt++;
+          if (dealt >= _dealSeats.length) {
+            t.cancel();
+            _introTimer = Timer(const Duration(milliseconds: 500), () {
+              intro = IntroStep.flip;
+              notifyListeners();
+              _runIntro();
+            });
+          }
+          notifyListeners();
+        });
+      case IntroStep.flip:
+        _introTimer = Timer(const Duration(milliseconds: 1100), () {
+          intro = IntroStep.order;
+          notifyListeners();
+          _runIntro();
+        });
+      case IntroStep.order:
+        _introTimer = Timer(const Duration(milliseconds: 2600), skipIntro);
+      case null:
+        break;
+    }
+  }
+
+  /// Ends the opening and starts play (also when the player taps to skip).
+  void skipIntro() {
+    if (!inIntro) return;
+    _introTimer?.cancel();
+    intro = null;
+    dealt = _dealSeats.length;
     _afterChange();
   }
 
@@ -131,6 +239,7 @@ class GameController extends ChangeNotifier {
   }
 
   String? _human(void Function() action) {
+    if (inIntro) return 'Wait for the deal to finish';
     try {
       action();
     } on StateError {
@@ -147,7 +256,7 @@ class GameController extends ChangeNotifier {
     if (_disposed) return;
     thinkingSeat = null;
     final bannerShown = _readEvents();
-    if (_paused) {
+    if (_paused || inIntro) {
       notifyListeners();
       return;
     }
@@ -249,6 +358,7 @@ class GameController extends ChangeNotifier {
   }
 
   void _cancelAll() {
+    _introTimer?.cancel();
     _botTimer?.cancel();
     _stopClock();
     for (final t in _jumpTimers) {

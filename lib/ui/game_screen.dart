@@ -52,6 +52,14 @@ class _GameScreenState extends State<GameScreen> {
   Timer? _hintTimer;
   bool _busy = false;
 
+  // Positions used to fly cards from the deck during the deal.
+  final _stackKey = GlobalKey();
+  final _deckKey = GlobalKey();
+  final _handKey = GlobalKey();
+  late final _seatKeys = {
+    for (var s = 1; s < widget.players; s++) s: GlobalKey(),
+  };
+
   @override
   void dispose() {
     _hintTimer?.cancel();
@@ -70,7 +78,7 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   Future<void> _onCardTap(GameCard card) async {
-    if (_busy || c.showResults) return;
+    if (_busy || c.showResults || c.inIntro) return;
     final jump = !c.isMyTurn && g.canJumpIn(GameController.human, card);
     if (!jump && !g.isPlayable(GameController.human, card)) {
       HapticFeedback.selectionClick();
@@ -275,6 +283,7 @@ class _GameScreenState extends State<GameScreen> {
               ),
               child: SafeArea(
                 child: Stack(
+                  key: _stackKey,
                   children: [
                     Column(
                       children: [
@@ -284,14 +293,41 @@ class _GameScreenState extends State<GameScreen> {
                           onMenu: _openMenu,
                           onGuide: _openGuide,
                         ),
-                        _Opponents(controller: c),
+                        _Opponents(controller: c, seatKeys: _seatKeys),
                         Expanded(
-                          child: _Table(controller: c, onDraw: _onDraw),
+                          child: _Table(
+                            controller: c,
+                            onDraw: _onDraw,
+                            deckKey: _deckKey,
+                          ),
                         ),
                         _StatusBar(controller: c, hint: _hint),
-                        _Hand(controller: c, onTap: _onCardTap),
+                        KeyedSubtree(
+                          key: _handKey,
+                          child: _Hand(controller: c, onTap: _onCardTap),
+                        ),
                       ],
                     ),
+                    if (c.inIntro) ...[
+                      // Tap anywhere to skip the opening.
+                      Positioned.fill(
+                        child: GestureDetector(
+                          behavior: HitTestBehavior.opaque,
+                          onTap: c.skipIntro,
+                        ),
+                      ),
+                      Positioned.fill(
+                        child: _DealFlights(
+                          controller: c,
+                          stackKey: _stackKey,
+                          deckKey: _deckKey,
+                          handKey: _handKey,
+                          seatKeys: _seatKeys,
+                        ),
+                      ),
+                      if (c.intro == IntroStep.order)
+                        Positioned.fill(child: _TurnOrderPanel(controller: c)),
+                    ],
                     if (c.showResults)
                       Positioned.fill(
                         child: _Results(
@@ -373,9 +409,10 @@ class _TopBar extends StatelessWidget {
 // ---------------------------------------------------------------- opponents
 
 class _Opponents extends StatelessWidget {
-  const _Opponents({required this.controller});
+  const _Opponents({required this.controller, required this.seatKeys});
 
   final GameController controller;
+  final Map<int, GlobalKey> seatKeys;
 
   @override
   Widget build(BuildContext context) {
@@ -390,6 +427,9 @@ class _Opponents extends StatelessWidget {
               child: _Seat(
                 player: p,
                 game: g,
+                avatarKey: seatKeys[p.seat],
+                count: controller.visibleCards(p.seat),
+                intro: controller.intro,
                 thinking: controller.thinkingSeat == p.seat,
                 onCatch: () => controller.catchBot(p.seat),
               ),
@@ -404,23 +444,35 @@ class _Seat extends StatelessWidget {
   const _Seat({
     required this.player,
     required this.game,
+    required this.avatarKey,
+    required this.count,
+    required this.intro,
     required this.thinking,
     required this.onCatch,
   });
 
   final Player player;
   final Game game;
+  final GlobalKey? avatarKey;
+
+  /// Cards visible on the table (grows during the deal).
+  final int count;
+  final IntroStep? intro;
   final bool thinking;
   final VoidCallback onCatch;
 
   @override
   Widget build(BuildContext context) {
     final p = player;
-    final active = game.current == p.seat && !game.isRoundOver && !p.out;
+    final active =
+        intro == null && game.current == p.seat && !game.isRoundOver && !p.out;
+    final dealer =
+        (intro == IntroStep.shuffle || intro == IntroStep.deal) &&
+        game.dealer == p.seat;
     final partner = game.isTeammate(0, p.seat);
     final canCatch = game.vulnerable == p.seat;
     final flip = game.rules.deck == DeckType.flipside;
-    final shown = min(p.hand.length, 6);
+    final shown = min(count, 6);
 
     return AnimatedOpacity(
       duration: const Duration(milliseconds: 300),
@@ -440,14 +492,14 @@ class _Seat extends StatelessWidget {
                     width: 2.5,
                   ),
                 ),
-                child: _Avatar(player: p, size: 44),
+                child: _Avatar(key: avatarKey, player: p, size: 44),
               ),
               Positioned(
                 right: -6,
                 bottom: -2,
                 child: _CountBadge(
-                  count: p.hand.length,
-                  hot: p.hand.length <= 2 && !p.out,
+                  count: count,
+                  hot: intro == null && count <= 2 && !p.out,
                 ),
               ),
               Positioned(
@@ -474,7 +526,9 @@ class _Seat extends StatelessWidget {
           SizedBox(
             height: 26,
             child: Center(
-              child: canCatch
+              child: dealer
+                  ? const _Chip(label: 'DEALER', color: Color(0xFF7A4AD0))
+                  : canCatch
                   ? _Chip(label: 'CATCH!', color: Palette.brand, onTap: onCatch)
                   : partner
                   ? const _Chip(label: 'PARTNER', color: Color(0xFF2475D6))
@@ -510,7 +564,7 @@ class _Seat extends StatelessWidget {
 }
 
 class _Avatar extends StatelessWidget {
-  const _Avatar({required this.player, required this.size});
+  const _Avatar({super.key, required this.player, required this.size});
 
   final Player player;
   final double size;
@@ -657,15 +711,23 @@ class _Chip extends StatelessWidget {
 // -------------------------------------------------------------------- table
 
 class _Table extends StatelessWidget {
-  const _Table({required this.controller, required this.onDraw});
+  const _Table({
+    required this.controller,
+    required this.onDraw,
+    required this.deckKey,
+  });
 
   final GameController controller;
   final VoidCallback onDraw;
+  final GlobalKey deckKey;
 
   @override
   Widget build(BuildContext context) {
     final g = controller.game;
-    final canDraw = controller.isMyTurn && g.phase == Phase.play;
+    final canDraw =
+        !controller.inIntro && controller.isMyTurn && g.phase == Phase.play;
+    final intro = controller.intro;
+    final cardsOut = intro != IntroStep.shuffle && intro != IntroStep.deal;
     return LayoutBuilder(
       builder: (context, box) {
         final cardW = min(92.0, min(box.maxWidth / 4.2, box.maxHeight / 2.3));
@@ -685,12 +747,22 @@ class _Table extends StatelessWidget {
                   width: cardW,
                   enabled: canDraw,
                   onTap: onDraw,
+                  deckKey: deckKey,
+                  intro: intro,
                 ),
                 SizedBox(width: cardW * 0.42),
-                _DiscardPile(game: g, width: cardW),
+                if (!cardsOut)
+                  _EmptySlot(width: cardW)
+                else if (intro == IntroStep.flip)
+                  _FlipIn(
+                    child: _DiscardPile(game: g, width: cardW),
+                  )
+                else
+                  _DiscardPile(game: g, width: cardW),
               ],
             ),
-            Positioned(bottom: 6, child: _ColorPill(color: g.activeColor)),
+            if (cardsOut)
+              Positioned(bottom: 6, child: _ColorPill(color: g.activeColor)),
             Align(
               alignment: const Alignment(0, -0.88),
               child: TableBannerView(banner: controller.banner),
@@ -708,19 +780,27 @@ class _DrawPile extends StatelessWidget {
     required this.width,
     required this.enabled,
     required this.onTap,
+    required this.deckKey,
+    required this.intro,
   });
 
   final Game game;
   final double width;
   final bool enabled;
   final VoidCallback onTap;
+  final GlobalKey deckKey;
+  final IntroStep? intro;
 
   @override
   Widget build(BuildContext context) {
     final flip = game.rules.deck == DeckType.flipside;
     final top = game.drawPile.isEmpty ? null : game.drawPile.last;
     final pending = game.pendingDraw;
-    final label = !enabled
+    final label = intro == IntroStep.shuffle
+        ? 'Shuffling'
+        : intro == IntroStep.deal
+        ? 'Dealing'
+        : !enabled
         ? '${game.drawPile.length} left'
         : pending > 0
         ? 'Take +$pending'
@@ -734,29 +814,32 @@ class _DrawPile extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           children: [
             SizedBox(
+              key: deckKey,
               width: width + 6,
               height: width * cardAspect + 6,
-              child: Stack(
-                children: [
-                  for (var i = 2; i >= 0; i--)
-                    Positioned(
-                      left: i * 2.0,
-                      top: i * 2.0,
-                      child: PlayingCard(
-                        width: width,
-                        face: flip && i == 0 && top != null
-                            ? top.face(game.side.other)
-                            : null,
-                        wildColors: game.side.other == Side.light
-                            ? CardColor.light
-                            : CardColor.dark,
-                        glow: enabled && i == 0
-                            ? Colors.white.withValues(alpha: 0.55)
-                            : null,
-                      ),
+              child: intro == IntroStep.shuffle
+                  ? _ShuffleDeck(width: width)
+                  : Stack(
+                      children: [
+                        for (var i = 2; i >= 0; i--)
+                          Positioned(
+                            left: i * 2.0,
+                            top: i * 2.0,
+                            child: PlayingCard(
+                              width: width,
+                              face: flip && i == 0 && top != null
+                                  ? top.face(game.side.other)
+                                  : null,
+                              wildColors: game.side.other == Side.light
+                                  ? CardColor.light
+                                  : CardColor.dark,
+                              glow: enabled && i == 0
+                                  ? Colors.white.withValues(alpha: 0.55)
+                                  : null,
+                            ),
+                          ),
+                      ],
                     ),
-                ],
-              ),
             ),
             const SizedBox(height: 8),
             AnimatedDefaultTextStyle(
@@ -1098,7 +1181,7 @@ class _StatusBar extends StatelessWidget {
     final g = c.game;
     final me = c.me;
     final myTurn = c.isMyTurn;
-    final canLast = g.canCallLast(GameController.human);
+    final canLast = !c.inIntro && g.canCallLast(GameController.human);
     final urgentLast =
         canLast &&
         (g.vulnerable == GameController.human ||
@@ -1171,6 +1254,20 @@ class _StatusBar extends StatelessWidget {
 
   String _status(GameController c) {
     final g = c.game;
+    final dealer = g.players[g.dealer];
+    final dealerName = dealer.isHuman ? 'You' : dealer.name;
+    switch (c.intro) {
+      case IntroStep.shuffle:
+        return '$dealerName ${dealer.isHuman ? 'shuffle' : 'shuffles'} the deck… · tap to skip';
+      case IntroStep.deal:
+        return '$dealerName ${dealer.isHuman ? 'deal' : 'deals'} ${g.rules.handSize} cards each… · tap to skip';
+      case IntroStep.flip:
+        return 'First card: ${g.topFace.label}';
+      case IntroStep.order:
+        return 'Get ready…';
+      case null:
+        break;
+    }
     if (c.humanOut) return 'You are out of this match';
     if (g.isRoundOver) return '';
     if (!c.isMyTurn) {
@@ -1332,10 +1429,16 @@ class _Hand extends StatelessWidget {
   Widget build(BuildContext context) {
     final c = controller;
     final g = c.game;
-    final hand = List.of(c.me.hand)
-      ..sort((a, b) => _order(g, a).compareTo(_order(g, b)));
-    final myTurn = c.isMyTurn;
-    final jumps = g.jumpInCards(GameController.human).map((c) => c.id).toSet();
+    // While dealing, cards arrive one by one in deal order; once play starts
+    // they slide into sorted order.
+    final hand = c.inIntro
+        ? c.me.hand.take(c.visibleCards(GameController.human)).toList()
+        : (List.of(c.me.hand)
+            ..sort((a, b) => _order(g, a).compareTo(_order(g, b))));
+    final myTurn = c.isMyTurn && !c.inIntro;
+    final jumps = c.inIntro
+        ? const <int>{}
+        : g.jumpInCards(GameController.human).map((c) => c.id).toSet();
     final flip = g.rules.deck == DeckType.flipside;
 
     return LayoutBuilder(
@@ -1688,6 +1791,352 @@ class _ResultRow extends StatelessWidget {
           Text(right, style: font(15, weight: 650)),
         ],
       ),
+    );
+  }
+}
+
+// -------------------------------------------------------------- round intro
+
+/// Empty discard spot shown until the first card is turned over.
+class _EmptySlot extends StatelessWidget {
+  const _EmptySlot({required this.width});
+
+  final double width;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        SizedBox(
+          width: width * 1.25,
+          height: width * cardAspect + 6,
+          child: Center(
+            child: Container(
+              width: width,
+              height: width * cardAspect,
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(width * 0.13),
+                border: Border.all(
+                  color: Palette.text.withValues(alpha: 0.18),
+                  width: 2,
+                ),
+              ),
+            ),
+          ),
+        ),
+        const SizedBox(height: 26),
+      ],
+    );
+  }
+}
+
+/// Turns its child over like a card being flipped face up.
+class _FlipIn extends StatelessWidget {
+  const _FlipIn({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: const Duration(milliseconds: 520),
+      curve: Curves.easeOutBack,
+      builder: (context, v, child) => Transform(
+        alignment: Alignment.center,
+        transform: Matrix4.identity()
+          ..setEntry(3, 2, 0.0015)
+          ..rotateY((1 - v.clamp(0.0, 1.0)) * pi / 2),
+        child: child,
+      ),
+      child: child,
+    );
+  }
+}
+
+/// The deck riffled in two halves.
+class _ShuffleDeck extends StatefulWidget {
+  const _ShuffleDeck({required this.width});
+
+  final double width;
+
+  @override
+  State<_ShuffleDeck> createState() => _ShuffleDeckState();
+}
+
+class _ShuffleDeckState extends State<_ShuffleDeck>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 650),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final w = widget.width;
+    return AnimatedBuilder(
+      animation: _c,
+      builder: (context, _) {
+        final t = _c.value;
+        final spread = sin(t * pi) * w * 0.48;
+        final tilt = sin(t * pi) * 0.14;
+        Widget half(double dir, int i) => Positioned(
+          left: 3 - i * 1.5,
+          top: 3 - i * 1.5,
+          child: Transform.translate(
+            offset: Offset(dir * spread, -sin(t * pi) * 6),
+            child: Transform.rotate(
+              angle: dir * tilt,
+              child: PlayingCard(width: w),
+            ),
+          ),
+        );
+        // The right half drops on top in the second half of each riffle.
+        final left = [for (var i = 0; i < 3; i++) half(-1, i)];
+        final right = [for (var i = 0; i < 3; i++) half(1, i)];
+        return Stack(
+          clipBehavior: Clip.none,
+          children: t < 0.5 ? [...right, ...left] : [...left, ...right],
+        );
+      },
+    );
+  }
+}
+
+class _Flight {
+  _Flight(this.id, this.from, this.to, this.toHand);
+
+  final int id;
+  final Offset from;
+  final Offset to;
+  final bool toHand;
+}
+
+/// Card backs flying from the deck to each seat while dealing.
+class _DealFlights extends StatefulWidget {
+  const _DealFlights({
+    required this.controller,
+    required this.stackKey,
+    required this.deckKey,
+    required this.handKey,
+    required this.seatKeys,
+  });
+
+  final GameController controller;
+  final GlobalKey stackKey;
+  final GlobalKey deckKey;
+  final GlobalKey handKey;
+  final Map<int, GlobalKey> seatKeys;
+
+  @override
+  State<_DealFlights> createState() => _DealFlightsState();
+}
+
+class _DealFlightsState extends State<_DealFlights> {
+  final _flights = <_Flight>[];
+  late int _seen = widget.controller.dealt;
+
+  Offset? _center(GlobalKey? key, {double dy = 0}) {
+    final box = key?.currentContext?.findRenderObject() as RenderBox?;
+    final root =
+        widget.stackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || root == null || !box.attached || !root.attached) {
+      return null;
+    }
+    return box.localToGlobal(box.size.center(Offset(0, dy)), ancestor: root);
+  }
+
+  @override
+  void didUpdateWidget(_DealFlights old) {
+    super.didUpdateWidget(old);
+    final c = widget.controller;
+    if (c.intro != IntroStep.deal) {
+      _seen = c.dealt;
+      return;
+    }
+    final from = _center(widget.deckKey);
+    for (; _seen < c.dealt; _seen++) {
+      final seat = c.dealSeatAt(_seen);
+      final toHand = seat == GameController.human;
+      final to = toHand
+          ? _center(widget.handKey, dy: -10)
+          : _center(widget.seatKeys[seat]);
+      if (from != null && to != null) {
+        _flights.add(_Flight(_seen, from, to, toHand));
+      }
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return IgnorePointer(
+      child: Stack(
+        clipBehavior: Clip.none,
+        children: [
+          for (final f in _flights)
+            TweenAnimationBuilder<double>(
+              key: ValueKey(f.id),
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 380),
+              curve: Curves.easeOutCubic,
+              onEnd: () => setState(() => _flights.remove(f)),
+              builder: (context, v, _) {
+                const w = 46.0;
+                final pos =
+                    Offset.lerp(f.from, f.to, v)! +
+                    Offset(0, -46 * sin(v * pi));
+                final scale = 1 - v * (f.toHand ? 0.1 : 0.55);
+                return Positioned(
+                  left: pos.dx - w / 2,
+                  top: pos.dy - w * cardAspect / 2,
+                  child: Transform.rotate(
+                    angle: (1 - v) * pi * 0.9,
+                    child: Transform.scale(
+                      scale: scale,
+                      child: Opacity(
+                        opacity: v > 0.92 ? (1 - v) / 0.08 : 1,
+                        child: const PlayingCard(width: w),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+        ],
+      ),
+    );
+  }
+}
+
+/// "Kira starts": who opens the round and the order around the table.
+class _TurnOrderPanel extends StatelessWidget {
+  const _TurnOrderPanel({required this.controller});
+
+  final GameController controller;
+
+  @override
+  Widget build(BuildContext context) {
+    final g = controller.game;
+    final order = controller.turnOrder;
+    final first = g.players[order.first];
+    return IgnorePointer(
+      child: ColoredBox(
+        color: Colors.black.withValues(alpha: 0.45),
+        child: Center(
+          child: TweenAnimationBuilder<double>(
+            tween: Tween(begin: 0, end: 1),
+            duration: const Duration(milliseconds: 380),
+            curve: Curves.easeOutBack,
+            builder: (context, v, child) => Opacity(
+              opacity: v.clamp(0.0, 1.0),
+              child: Transform.scale(scale: 0.85 + 0.15 * v, child: child),
+            ),
+            child: Container(
+              margin: const EdgeInsets.symmetric(horizontal: 20),
+              padding: const EdgeInsets.fromLTRB(20, 22, 20, 18),
+              constraints: const BoxConstraints(maxWidth: 420),
+              decoration: BoxDecoration(
+                color: Palette.surface,
+                borderRadius: BorderRadius.circular(26),
+                border: Border.all(color: Palette.line),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: 0.4),
+                    blurRadius: 24,
+                    offset: const Offset(0, 10),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    first.isHuman ? 'You start!' : '${first.name} starts',
+                    style: font(26, weight: 700),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    '${g.players[g.dealer].isHuman ? 'You' : g.players[g.dealer].name} dealt · '
+                    'first card ${g.topFace.label}',
+                    textAlign: TextAlign.center,
+                    style: font(13.5, color: Palette.muted),
+                  ),
+                  const SizedBox(height: 18),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    runSpacing: 10,
+                    children: [
+                      for (var i = 0; i < order.length; i++) ...[
+                        if (i > 0)
+                          const Padding(
+                            padding: EdgeInsets.symmetric(horizontal: 4),
+                            child: Icon(
+                              Icons.chevron_right_rounded,
+                              color: Palette.muted,
+                              size: 20,
+                            ),
+                          ),
+                        _OrderSeat(player: g.players[order[i]], first: i == 0),
+                      ],
+                    ],
+                  ),
+                  const SizedBox(height: 16),
+                  Text(
+                    g.direction == 1
+                        ? 'Play goes clockwise'
+                        : 'Play goes counter-clockwise',
+                    style: font(13, weight: 550, color: Palette.muted),
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _OrderSeat extends StatelessWidget {
+  const _OrderSeat({required this.player, required this.first});
+
+  final Player player;
+  final bool first;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Container(
+          padding: const EdgeInsets.all(2.5),
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: first ? Palette.text : Colors.transparent,
+              width: 2.5,
+            ),
+          ),
+          child: _Avatar(player: player, size: 36),
+        ),
+        const SizedBox(height: 4),
+        Text(
+          player.name,
+          style: font(
+            12,
+            weight: first ? 650 : 500,
+            color: first ? Palette.text : Palette.muted,
+          ),
+        ),
+      ],
     );
   }
 }

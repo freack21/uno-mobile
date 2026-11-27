@@ -115,6 +115,57 @@ void main() {
     await tester.pump(const Duration(seconds: 3));
   });
 
+  testWidgets('round opens with shuffle, deal, first card and turn order', (
+    tester,
+  ) async {
+    final c = GameController(
+      mode: gameModes.first,
+      rules: gameModes.first.rules,
+      playerCount: 4,
+      difficulty: Difficulty.hard,
+    );
+    addTearDown(c.dispose);
+    final moves = c.game.events.length;
+
+    expect(c.intro, IntroStep.shuffle);
+    expect([for (var s = 0; s < 4; s++) c.visibleCards(s)], [0, 0, 0, 0]);
+
+    await tester.pump(const Duration(milliseconds: 1600));
+    expect(c.intro, IntroStep.deal);
+    // The player after the dealer receives the first card.
+    await tester.pump(const Duration(milliseconds: 100));
+    expect(c.visibleCards(c.game.nextSeat(c.game.dealer)), 1);
+
+    await tester.pump(const Duration(seconds: 3));
+    expect(c.intro, IntroStep.flip);
+    expect([for (var s = 0; s < 4; s++) c.visibleCards(s)], [7, 7, 7, 7]);
+
+    await tester.pump(const Duration(milliseconds: 1200));
+    expect(c.intro, IntroStep.order);
+    expect(c.turnOrder.first, c.game.current);
+    expect(c.turnOrder.toSet().length, 4);
+    // Nobody may act during the opening.
+    expect(c.draw(), isNotNull);
+    expect(c.game.events.length, moves);
+
+    await tester.pump(const Duration(milliseconds: 2700));
+    expect(c.intro, isNull);
+  });
+
+  testWidgets('tapping skips the opening', (tester) async {
+    final c = GameController(
+      mode: gameModes.first,
+      rules: gameModes.first.rules,
+      playerCount: 3,
+      difficulty: Difficulty.normal,
+    );
+    addTearDown(c.dispose);
+    await tester.pump(const Duration(milliseconds: 1700));
+    c.skipIntro();
+    expect(c.intro, isNull);
+    expect(c.visibleCards(0), 7);
+  });
+
   testWidgets('basics guide renders', (tester) async {
     await phone(tester);
     await tester.pumpWidget(wrap(const GuideScreen()));
