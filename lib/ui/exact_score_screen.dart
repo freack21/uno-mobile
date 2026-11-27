@@ -12,6 +12,7 @@ import 'package:last_card_core/rules.dart';
 
 import 'game_controller.dart' show TableBanner, botNames;
 import 'game_screen.dart' show TableBannerView;
+import '../online/session.dart';
 import 'guide_screen.dart';
 import 'party_widgets.dart';
 import 'playing_card.dart';
@@ -174,7 +175,8 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
     return PartyScaffold(
       mode: widget.mode,
       subtitle:
-          'Target ${g.target} · ${online ? 'Online' : widget.difficulty.label}',
+          'Target ${g.target} · '
+          '${online ? OnlineSession.instance.statusLabel : widget.difficulty.label}',
       accent: t.stage == ExactStage.bust
           ? Palette.brand
           : myTurn

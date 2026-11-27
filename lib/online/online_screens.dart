@@ -1161,24 +1161,7 @@ class _OnlineMatchScreenState extends State<OnlineMatchScreen> {
         : _exact != null
         ? ExactScoreScreen(mode: _mode, table: _exact)
         : HoldCardScreen(mode: _mode, table: _hold);
-    return Stack(
-      children: [
-        screen,
-        if (!_session.connected)
-          const Positioned(
-            top: 0,
-            left: 0,
-            right: 0,
-            child: SafeArea(
-              child: Center(
-                child: Padding(
-                  padding: EdgeInsets.only(top: 6),
-                  child: PartyChip('RECONNECTING…', color: Color(0xFF9B2A21)),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
+    // The header says "Reconnecting…" while the connection is down.
+    return screen;
   }
 }

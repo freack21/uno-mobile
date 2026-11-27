@@ -99,6 +99,9 @@ class OnlineSession extends ChangeNotifier {
   /// Stops offering the saved room (it no longer exists).
   void forgetSaved() => writeStored(_storeKey, null);
 
+  /// Header label of an online match: shows when the connection dropped.
+  String get statusLabel => connected ? 'Online' : 'Reconnecting…';
+
   void leave() {
     _send({'t': 'leave'});
     writeStored(_storeKey, null);

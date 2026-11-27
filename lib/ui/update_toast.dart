@@ -1,5 +1,6 @@
 import 'package:material_ui/material_ui.dart';
 
+import '../online/session.dart';
 import 'app_update.dart';
 import 'theme.dart';
 
@@ -77,7 +78,11 @@ class _UpdateToastState extends State<UpdateToast> {
                 children: [
                   Text('Update available', style: font(15, weight: 650)),
                   Text(
-                    'A match in progress will restart.',
+                    // Online you come straight back to the room; a game
+                    // against bots lives only in this tab.
+                    OnlineSession.instance.inRoom
+                        ? 'You rejoin your room right after.'
+                        : 'A game against bots will restart.',
                     style: font(12.5, color: Palette.muted),
                   ),
                 ],

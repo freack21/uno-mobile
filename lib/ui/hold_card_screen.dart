@@ -11,6 +11,7 @@ import 'package:last_card_core/rules.dart';
 
 import 'game_controller.dart' show TableBanner, botNames;
 import 'game_screen.dart' show TableBannerView;
+import '../online/session.dart';
 import 'guide_screen.dart';
 import 'party_widgets.dart';
 import 'playing_card.dart';
@@ -202,7 +203,7 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
       mode: widget.mode,
       subtitle:
           'Guess the ${g.guess.label.toLowerCase()} · '
-          '${online ? 'Online' : widget.difficulty.label}',
+          '${online ? OnlineSession.instance.statusLabel : widget.difficulty.label}',
       accent: race ? gold : Palette.brand,
       onMenu: _menu,
       child: Stack(

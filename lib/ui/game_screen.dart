@@ -9,6 +9,7 @@ import 'package:last_card_core/game.dart';
 import 'package:last_card_core/modes.dart';
 import 'package:last_card_core/rules.dart';
 
+import '../online/session.dart';
 import 'game_controller.dart';
 import 'guide_screen.dart';
 import 'party_widgets.dart' show seatColor;
@@ -602,7 +603,9 @@ class _GameScreenState extends State<GameScreen> {
     if (c.rules.deck == DeckType.flipside) {
       parts.add(g.side == Side.light ? 'Light side' : 'Dark side');
     }
-    parts.add(c.online ? 'Online' : c.difficulty.label);
+    parts.add(
+      c.online ? OnlineSession.instance.statusLabel : c.difficulty.label,
+    );
     return parts.join(' · ');
   }
 }
