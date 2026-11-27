@@ -2,6 +2,8 @@ import 'dart:js_interop';
 
 import 'package:web/web.dart' as web;
 
+Future<void> initStorage() async {}
+
 String? readStored(String key) {
   try {
     return web.window.localStorage.getItem(key);

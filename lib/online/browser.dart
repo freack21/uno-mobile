@@ -4,6 +4,9 @@ import 'browser_stub.dart'
 
 /// Small browser helpers (no-ops outside the web build).
 
+/// Loads saved settings before the app starts (device storage off the web).
+Future<void> initStorage() => impl.initStorage();
+
 String? readStored(String key) => impl.readStored(key);
 
 void writeStored(String key, String? value) => impl.writeStored(key, value);

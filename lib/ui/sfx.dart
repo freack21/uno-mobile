@@ -2,7 +2,8 @@ import 'package:material_ui/material_ui.dart';
 
 import 'sfx_stub.dart' if (dart.library.js_interop) 'sfx_web.dart' as platform;
 
-/// Short synthesized sound effects (web/sfx.js on the web, silent elsewhere).
+/// Short sound effects: synthesized by web/sfx.js on the web, played from
+/// the same sounds rendered to assets/sfx in the app.
 enum Sfx {
   card,
   draw,

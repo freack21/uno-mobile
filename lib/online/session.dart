@@ -1,10 +1,18 @@
 import 'dart:async';
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:material_ui/material_ui.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
 import 'browser.dart';
+
+/// The public game server the app connects to (and invite links point to);
+/// override with --dart-define=LC_HOST=... for a test server.
+const appHost = String.fromEnvironment(
+  'LC_HOST',
+  defaultValue: 'uno.refandi.my.id',
+);
 
 const _storeKey = 'lc-online';
 
@@ -57,6 +65,8 @@ class OnlineSession extends ChangeNotifier {
   }
 
   Uri get _url {
+    // The app talks to the public server; the web build to its own host.
+    if (!kIsWeb) return Uri.parse('wss://$appHost/ws');
     final override = Uri.base.queryParameters['ws'];
     if (override != null) return Uri.parse(override);
     final base = Uri.base;
@@ -71,8 +81,9 @@ class OnlineSession extends ChangeNotifier {
   /// Link that opens the app straight into this room.
   String get inviteLink {
     final base = Uri.base;
-    final origin =
-        '${base.scheme}://${base.host}${base.hasPort ? ':${base.port}' : ''}';
+    final origin = kIsWeb
+        ? '${base.scheme}://${base.host}${base.hasPort ? ':${base.port}' : ''}'
+        : 'https://$appHost';
     return '$origin/#join=$roomId-$password';
   }
 

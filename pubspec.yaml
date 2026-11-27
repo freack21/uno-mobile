@@ -14,6 +14,9 @@ dependencies:
     path: packages/last_card_core
   web_socket_channel: ^3.0.3
   web: ^1.1.2
+  audioplayers: ^6.8.1
+  shared_preferences: ^2.5.6
+  share_plus: ^13.3.1
 
 dev_dependencies:
   flutter_test:
@@ -22,6 +25,9 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+  assets:
+    # Sound effects for the app (the web build synthesizes them instead).
+    - assets/sfx/
   fonts:
     - family: Fredoka
       fonts:

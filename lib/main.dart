@@ -1,14 +1,16 @@
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'online/browser.dart';
 import 'ui/app_update.dart';
 import 'ui/home_screen.dart';
 import 'ui/theme.dart';
 import 'ui/theme_switch.dart';
 import 'ui/update_toast.dart';
 
-void main() {
+Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+  await initStorage();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   watchForUpdates();
   // Invite links look like https://host/#join=ROOMID-1234.
