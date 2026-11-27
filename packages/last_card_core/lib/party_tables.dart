@@ -122,6 +122,8 @@ class ExactScoreTable extends TableRuntime {
     if (game.current != seat || game.phase != ScorePhase.draw) return;
     game.draw(seat);
     turnId++;
+    // Only the latest move animates; older points stay crossed off.
+    fillFrom.clear();
     stage = ExactStage.tease;
     sound('draw');
     changed();

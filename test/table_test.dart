@@ -69,6 +69,36 @@ void main() {
     expectStandings(t, 4);
   });
 
+  test('Exact Score only animates the latest gain', () async {
+    final t = ExactScoreTable(
+      game: ExactScoreGame(
+        players: [for (var i = 0; i < 3; i++) ScorePlayer(i, 'P$i')],
+        target: 30,
+        rng: Random(5),
+      ),
+      humans: {},
+      pace: pace,
+      rng: Random(5),
+    );
+    var gains = 0;
+    var draws = 0;
+    final done = Completer<void>();
+    t.onChange = () {
+      if (t.fillFrom.isNotEmpty) gains++;
+      if (t.stage == ExactStage.tease) {
+        draws++;
+        // A fresh draw must not replay anyone's earlier crossing-off.
+        expect(t.fillFrom, isEmpty);
+      }
+      if (t.isOver && !done.isCompleted) done.complete();
+    };
+    t.start();
+    await done.future.timeout(const Duration(seconds: 60));
+    t.dispose();
+    expect(draws, greaterThan(1));
+    expect(gains, greaterThan(0));
+  });
+
   test('Hold Card table plays a full match', () async {
     final t = HoldCardTable(
       game: HoldCardGame(

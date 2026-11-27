@@ -475,7 +475,7 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
                           : i >= from && i < p.score
                           // Newly scored: cross off one after another.
                           ? _Tick(
-                              key: ValueKey('$t.turnId-$i'),
+                              key: ValueKey('${t.turnId}-$i'),
                               filled: true,
                               delay: (i - from) * tickMs + 120,
                             )
