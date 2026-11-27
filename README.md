@@ -76,7 +76,8 @@ and keeps every hidden card, and sends each player only what they may see
 (seats rotated so everyone sits at the bottom of their own screen). Players
 who drop out are reconnected automatically with a saved token; a player who
 stays idle on their turn is played for after 25 seconds, and someone who
-leaves is replaced by a bot.
+leaves is replaced by a bot. Rooms are saved to disk, so they survive a
+server restart or redeploy (only a match running at that moment is lost).
 
 ## Project layout
 

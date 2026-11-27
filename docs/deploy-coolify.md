@@ -20,10 +20,14 @@ Two services run from `docker-compose.yml`:
 | `web` | `web` | nginx serving the PWA on port 8080; proxies `/ws` to `server` |
 | `server` | `server` | Dart WebSocket game server for online rooms on port 8081 (not public) |
 
-Only `web` gets the domain. Online rooms live in the server's memory: no
-database, no secrets, no volumes. A server restart (for example a deploy)
-ends the rooms that are open at that moment; players simply create a new one.
-Keep one replica of `server`.
+Only `web` gets the domain. Online rooms live in the server's memory and are
+saved every few seconds (and on shutdown) to `/data/rooms.json` on the `rooms`
+volume, so a redeploy keeps every room, nickname, score and match history:
+players reconnect on their own. A match that is running at that moment cannot
+be resumed; it is stopped unscored and the lobby says so. No database and no
+secrets. Rooms nobody reconnects to are removed after 30 minutes.
+
+Keep one replica of `server`: rooms are not shared between instances.
 
 ## 1. DNS (Cloudflare)
 
