@@ -52,6 +52,9 @@ Future<bool> shareLink({
 void setPageColors({required String background, required bool dark}) {
   if (!_device) return;
   final ink = Color(int.parse('FF${background.substring(1)}', radix: 16));
+  // Draw behind the status bar (the app keeps clear of it with SafeArea), so
+  // it shows the table color instead of a grey strip on older Android.
+  SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(
     SystemUiOverlayStyle(
       statusBarColor: const Color(0x00000000),
