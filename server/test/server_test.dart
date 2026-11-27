@@ -298,7 +298,20 @@ void main() {
     await cs[0].close();
   });
 
-  test('rooms survive a restart; a running match is reported', () async {
+  test('rooms and a running match survive a restart', () async {
+    // A slower table, so the save lands in the middle of the match.
+    lobby.close();
+    await server.close(force: true);
+    lobby = Lobby(
+      config: const ServerConfig(pace: 0.05, idleMs: 400, introMs: 0),
+    );
+    server = await io.serve(
+      createHandler(lobby),
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    port = server.port;
+
     final (cs, id, pass) = await room(1);
     final token = cs[1].inbox.firstWhere((m) => isType(m, 'welcome'))['token'];
     cs[0].send({'t': 'nick', 'name': 'Ana'});
@@ -310,17 +323,22 @@ void main() {
           (m['members'] as List).any((x) => x['name'] == 'Ana'),
     );
     cs[0].send({'t': 'start'});
-    final done = await cs[0].next(
-      (m) => isType(m, 'room') && (m['history'] as List).isNotEmpty,
-    );
-    cs[0].send({'t': 'start'});
-    await cs[0].next(
-      (m) => isType(m, 'room') && m['playing'] == true,
-      from: cs[0].inbox.length,
-    );
+    final before = await cs[1].next((m) => isType(m, 'match'));
+    await Future<void>.delayed(const Duration(milliseconds: 300));
 
     // The old process saves and stops; a new one loads the file.
-    final saved = jsonDecode(jsonEncode(lobby.snapshot()));
+    final saved = jsonDecode(jsonEncode(lobby.snapshot())) as Map;
+    final savedRoom = (saved['rooms'] as List).single as Map;
+    expect(savedRoom['match'], isNotNull, reason: 'saved mid-match');
+    final g = savedRoom['match']['table']['game'] as Map;
+    int total(Map v, int pile) =>
+        (v['players'] as List).fold<int>(
+          0,
+          (s, p) => s + (p['hand'] as List).length,
+        ) +
+        pile +
+        (v['discard'] as List).length;
+    final cards = total(g, (g['pile'] as List).length);
     for (final c in cs) {
       await c.close();
     }
@@ -329,7 +347,7 @@ void main() {
     lobby = Lobby(
       config: const ServerConfig(pace: 0.0005, idleMs: 40, introMs: 0),
     );
-    expect(lobby.restore(saved as Map<String, dynamic>), 1);
+    expect(lobby.restore(saved.cast<String, dynamic>()), 1);
     server = await io.serve(
       createHandler(lobby),
       InternetAddress.loopbackIPv4,
@@ -339,16 +357,55 @@ void main() {
     final back = await Client.connect(server.port);
     back.send({'t': 'join', 'room': id, 'pass': pass, 'token': token});
     final view = await back.next((m) => isType(m, 'room'));
-    expect(view['you'], done['members'][1]['id']);
-    expect(view['host'], done['host']);
-    expect(view['interrupted'], 'Classic');
-    expect(view['playing'], isFalse);
-    expect(view['history'], done['history']);
+    expect(view['you'], (view['members'] as List)[1]['id']);
+    expect(view['interrupted'], isNull);
+    expect(view['matchId'], before['id']);
+    expect([
+      for (final x in view['members'] as List) x['name'],
+    ], contains('Ana'));
+    // The same match carries on from the same cards, and gets scored.
+    final again = await back.next((m) => isType(m, 'match'));
+    expect(again['id'], before['id']);
+    final v = again['view'] as Map;
     expect(
-      [for (final x in view['members'] as List) (x['name'], x['points'])],
-      [for (final x in done['members'] as List) (x['name'], x['points'])],
+      total(v, v['draw'] as int),
+      cards,
+      reason: 'same deck, no card lost',
     );
-    expect(view['setup']['bots'], 1);
+    final done = await back.next(
+      (m) => isType(m, 'room') && (m['history'] as List).isNotEmpty,
+    );
+    expect(done['playing'], isFalse);
+    expect((done['history'] as List).single['mode'], 'Classic');
+    await back.close();
+  });
+
+  test('a save that cannot be read is reported in the lobby', () async {
+    final (cs, id, pass) = await room(0);
+    final token = cs[0].inbox.firstWhere((m) => isType(m, 'welcome'))['token'];
+    final saved = jsonDecode(jsonEncode(lobby.snapshot())) as Map;
+    ((saved['rooms'] as List).single as Map)['match'] = {
+      'id': 1,
+      'mode': 'speed',
+      'table': {'kind': 'unknown'},
+    };
+    await cs[0].close();
+    lobby.close();
+    lobby = Lobby(
+      config: const ServerConfig(pace: 0.0005, idleMs: 40, introMs: 0),
+    );
+    lobby.restore(saved.cast<String, dynamic>());
+    await server.close(force: true);
+    server = await io.serve(
+      createHandler(lobby),
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    final back = await Client.connect(server.port);
+    back.send({'t': 'join', 'room': id, 'pass': pass, 'token': token});
+    final view = await back.next((m) => isType(m, 'room'));
+    expect(view['interrupted'], 'Speed');
+    expect(view['playing'], isFalse);
     await back.close();
   });
 

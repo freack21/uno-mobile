@@ -10,6 +10,7 @@ import 'package:last_card_core/party_tables.dart';
 import 'package:last_card_core/protocol.dart';
 import 'package:last_card_core/rules.dart';
 import 'package:last_card_core/shed_table.dart';
+import 'package:last_card_core/snapshot.dart';
 import 'package:last_card_core/table.dart';
 
 /// One open connection; [send] delivers a JSON message.
@@ -213,8 +214,8 @@ class Room {
   /// next match starts.
   String? interrupted;
 
-  /// Everything needed to bring the room back after a restart. A running
-  /// match cannot be resumed; it is reported as interrupted instead.
+  /// Everything needed to bring the room back after a restart, a running
+  /// match included (it carries on where it was).
   Map<String, Object?> toJson() {
     final m = match;
     return {
@@ -226,8 +227,46 @@ class Room {
       'history': [for (final h in history) h.toJson()],
       'serial': _matchSerial,
       'finished': finished,
-      'interrupted': m != null && !m.table.isOver ? m.mode.name : interrupted,
+      'interrupted': interrupted,
+      'match': m == null || m.table.isOver
+          ? null
+          : {
+              'id': m.id,
+              'mode': m.mode.id,
+              'seats': m.seats,
+              'names': m.names,
+              'colors': m.colors,
+              'difficulty': switch (m.table) {
+                final ShedTable t => t.difficulty.index,
+                final ExactScoreTable t => t.difficulty.index,
+                final HoldCardTable t => t.difficulty.index,
+                _ => Difficulty.normal.index,
+              },
+              'table': saveTable(m.table),
+            },
     };
+  }
+
+  /// Carries on a match saved by [toJson].
+  void _resumeMatch(Map<String, dynamic> j) {
+    final mode = gameModes.firstWhere((x) => x.id == j['mode']);
+    final table = loadTable(
+      j['table'] as Map<String, dynamic>,
+      difficulty: Difficulty.values[j['difficulty'] as int],
+      pace: config.pace,
+      idleMs: config.idleMs,
+      introMs: config.introMs,
+      rng: rng,
+    );
+    final m =
+        Match(j['id'] as int, mode, [
+            for (final s in j['seats'] as List) s as String?,
+          ], table)
+          ..names.addAll([for (final n in j['names'] as List) n as String])
+          ..colors.addAll([for (final c in j['colors'] as List) c as int]);
+    match = m;
+    table.onChange = () => _onMatchChange(m);
+    resumeTable(table);
   }
 
   static Room fromJson(
@@ -249,6 +288,19 @@ class Room {
       for (final h in j['history'] as List)
         MatchRecord.fromJson(h as Map<String, dynamic>),
     ]);
+    final m = j['match'] as Map<String, dynamic>?;
+    if (m != null) {
+      try {
+        r._resumeMatch(m);
+      } catch (_) {
+        // A save this version cannot read: say so in the lobby instead.
+        r.match?.table.dispose();
+        r.match = null;
+        r.interrupted = gameModes
+            .firstWhere((x) => x.id == m['mode'], orElse: () => gameModes.first)
+            .name;
+      }
+    }
     return r;
   }
 
