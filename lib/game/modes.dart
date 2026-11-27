@@ -554,32 +554,47 @@ const gameModes = <GameMode>[
   GameMode(
     id: 'hold_card',
     name: 'Hold Card',
-    tagline: 'Same number? Slap HOLD. Slowest takes the box.',
+    tagline: 'Call it blind. On a match, slap HOLD — slowest takes the box.',
     accent: _red,
     tag: 'Party',
     kind: GameKind.holdCard,
     rules: RuleSet(),
     guide: [
       GuideSection('Goal', [
-        'Everyone starts with 10 number cards. Be the first with an empty hand.',
+        'Everyone gets 10 face-down cards. Nobody can see them — not even you.',
+        'Be the first to empty your hand.',
       ]),
       GuideSection(
-        'Each round',
+        'Your turn',
         [
-          'Everyone secretly picks one card. All cards are turned over at once and go into the box.',
-          'If two or more show the same number, everyone races to press HOLD CARD.',
-          'The slowest player — or anyone who doesn\'t press at all — takes every card in the box.',
-          'No match? The cards stay in the box and it keeps growing.',
+          'Call a number from 0 to 9 (or a color, in Color mode).',
+          'Then put one of your unseen cards into the box. It is turned face up.',
+          'If it matches your call, everyone races to press HOLD CARD. The slowest — or anyone who doesn\'t press — takes every card in the box.',
+          'No match? The card stays in the box, the box keeps growing and play moves on.',
         ],
         cards: [
-          CardFace(_red, CardKind.number, value: 4),
-          CardFace(_blue, CardKind.number, value: 4),
-          CardFace(_green, CardKind.number, value: 8),
+          CardFace(_red, CardKind.number, value: 7),
+          CardFace(_blue, CardKind.number, value: 7),
+        ],
+      ),
+      GuideSection(
+        'Special cards',
+        [
+          'Wild and Wild +4 always match. Whoever puts down a Wild +4 also draws 4 from the stock.',
+          'Number mode: +2 never matches, and whoever puts it down draws 2 from the stock.',
+          'Color mode: +2 matches by its color, but its owner still draws 2.',
+          'Skip skips the next player; Reverse turns the direction.',
+        ],
+        cards: [
+          CardFace(_wild, CardKind.wild),
+          CardFace(_wild, CardKind.wildDraw, draw: 4),
+          CardFace(_yellow, CardKind.draw, draw: 2),
+          CardFace(_green, CardKind.skip),
         ],
       ),
       GuideSection('Careful', [
-        'Pressing HOLD when nothing matches makes you take the box yourself.',
-        'If several players empty their hand in the same round, they share the win.',
+        'Pressing HOLD when there is no match makes you take the box yourself.',
+        'If several players never press, one of them takes the box.',
       ]),
       GuideSection('Tips', [
         'Keep your thumb near HOLD — hard bots react in under half a second.',

@@ -22,11 +22,13 @@ class HoldCardScreen extends StatefulWidget {
     required this.mode,
     required this.players,
     required this.difficulty,
+    this.guess = HoldGuess.number,
   });
 
   final GameMode mode;
   final int players;
   final Difficulty difficulty;
+  final HoldGuess guess;
 
   @override
   State<HoldCardScreen> createState() => _HoldCardScreenState();
@@ -34,16 +36,20 @@ class HoldCardScreen extends StatefulWidget {
 
 class _HoldCardScreenState extends State<HoldCardScreen> {
   static const me = 0;
+  static const gold = Color(0xFFF4B620);
   final _rng = Random();
   late HoldCardGame g;
   late List<HoldBot?> _bots;
   final _timers = <Timer>[];
   bool _paused = false;
-
-  /// The reveal row is shown from the reveal until the next round starts.
-  bool _showReveal = false;
   TableBanner? _banner;
   int _bannerId = 0;
+
+  /// Bumped for every card put in the box, to replay the flip.
+  int _playId = 0;
+
+  /// The human's call for this turn, before picking a card.
+  HoldCall? _call;
 
   @override
   void initState() {
@@ -82,6 +88,7 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
         HoldPlayer(me, 'You', isHuman: true),
         for (var i = 1; i < widget.players; i++) HoldPlayer(i, botNames[i - 1]),
       ],
+      guess: widget.guess,
       rng: _rng,
     );
     _bots = [
@@ -89,59 +96,79 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
         i == me ? null : HoldBot(widget.difficulty, _rng),
     ];
     _banner = null;
+    _call = null;
     playSfx(Sfx.shuffle);
-    _startRound();
+    _after(1000, _nextTurn);
   }
 
-  void _startRound() {
-    setState(() => _showReveal = false);
-    for (final p in g.players) {
-      if (p.isHuman || g.picks.containsKey(p.seat)) continue;
-      _after(500 + _rng.nextInt(1200), () {
-        if (g.phase != HoldPhase.choose || g.picks.containsKey(p.seat)) return;
-        g.pick(p.seat, _bots[p.seat]!.pick(p));
-        playSfx(Sfx.deal);
-        setState(() {});
-        _maybeReveal();
-      });
+  void _nextTurn() {
+    if (g.phase != HoldPhase.call) return;
+    _call = null;
+    setState(() {});
+    final seat = g.current;
+    if (seat == me) {
+      playSfx(Sfx.turn);
+      return;
     }
-  }
-
-  void _pick(GameCard card) {
-    if (g.phase != HoldPhase.choose || g.picks.containsKey(me)) return;
-    HapticFeedback.lightImpact();
-    playSfx(Sfx.card);
-    setState(() => g.pick(me, card));
-    _maybeReveal();
-  }
-
-  void _maybeReveal() {
-    if (!g.allPicked) return;
-    _after(550, () {
-      setState(() {
-        g.reveal();
-        _showReveal = true;
-      });
-      playSfx(Sfx.flip);
-      if (g.isMatch) {
-        playSfx(Sfx.last);
-        for (final p in g.players) {
-          final t = _bots[p.seat]?.reaction();
-          if (t != null) _after(t, () => _press(p.seat));
-        }
-        _after(2400, _settle);
-      } else {
-        for (final p in g.players) {
-          final t = _bots[p.seat]?.falsePress();
-          if (t != null) _after(t, () => _press(p.seat));
-        }
-        _after(1500, _settle);
-      }
+    final bot = _bots[seat]!;
+    final pace = switch (widget.difficulty) {
+      Difficulty.easy => 1.2,
+      Difficulty.normal => 1.0,
+      Difficulty.hard => 0.85,
+    };
+    _after(((1000 + _rng.nextInt(800)) * pace).round(), () {
+      if (g.phase != HoldPhase.call || g.current != seat) return;
+      _place(seat, bot.call(g.guess), bot.pick(g.players[seat]));
     });
   }
 
+  void _place(int seat, HoldCall call, int index) {
+    final play = g.place(seat, call, index);
+    _playId++;
+    playSfx(Sfx.flip);
+    final p = g.players[seat];
+    if (play.drew > 0) {
+      playSfx(Sfx.penalty);
+      _say(
+        '+${play.drew}',
+        '${p.name} ${p.isHuman ? 'draw' : 'draws'} ${play.drew} from the stock',
+        color: Palette.brand,
+      );
+    }
+    if (play.match) {
+      playSfx(Sfx.last);
+      for (final q in g.players) {
+        final t = _bots[q.seat]?.reaction();
+        if (t != null) _after(t, () => _press(q.seat));
+      }
+      _after(2400, _settle);
+      setState(() {});
+      return;
+    }
+    final kind = play.card.light.kind;
+    if (play.drew == 0 && kind == CardKind.skip) {
+      playSfx(Sfx.skip);
+      _say('SKIP', 'The next player loses a turn');
+    } else if (play.drew == 0 && kind == CardKind.reverse) {
+      playSfx(Sfx.reverse);
+      _say('REVERSE', 'Play changes direction');
+    }
+    // A jumpy bot may slap HOLD on a miss before the next turn starts.
+    for (final q in g.players) {
+      final t = _bots[q.seat]?.falsePress();
+      if (t != null) _after(t, () => _press(q.seat));
+    }
+    setState(() {});
+    if (g.phase == HoldPhase.over) {
+      _finish();
+    } else {
+      _after(play.drew > 0 ? 1900 : 1400, _nextTurn);
+    }
+  }
+
   void _press(int seat) {
-    if (g.phase != HoldPhase.reveal || g.presses.contains(seat)) return;
+    if (g.phase == HoldPhase.over) return;
+    if (g.phase == HoldPhase.race && g.presses.contains(seat)) return;
     if (seat == me) HapticFeedback.heavyImpact();
     playSfx(Sfx.tick);
     final r = g.press(seat);
@@ -150,36 +177,35 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
   }
 
   void _settle() {
-    if (g.phase != HoldPhase.reveal) return;
+    if (g.phase != HoldPhase.race) return;
     _resolved(g.settle());
   }
 
   void _resolved(HoldResult r) {
     _cancelTimers();
-    final taker = r.taker;
-    if (taker == null) {
-      _say('No match', 'The box keeps ${g.box.length} cards');
-    } else {
-      final name = g.players[taker].name;
-      final you = taker == me;
-      _say(
-        r.falsePress ? 'TOO EARLY!' : '+${r.taken}',
-        r.falsePress
-            ? '$name ${you ? 'take' : 'takes'} the box: ${r.taken} cards'
-            : you
-            ? 'Too slow! You take the box'
-            : '$name was slowest and takes the box',
-        color: Palette.brand,
-      );
-      playSfx(you ? Sfx.caught : Sfx.penalty);
-    }
-    if (g.phase == HoldPhase.over) {
-      playSfx(g.winners.contains(me) ? Sfx.win : Sfx.lose);
-      setState(() {});
-      return;
-    }
+    final taker = g.players[r.taker!];
+    final you = taker.isHuman;
+    _say(
+      r.falsePress ? 'TOO EARLY!' : '+${r.taken}',
+      r.falsePress
+          ? '${taker.name} pressed without a match: ${r.taken} cards'
+          : you
+          ? 'Too slow! You take the box'
+          : '${taker.name} was slowest and takes the box',
+      color: Palette.brand,
+    );
+    playSfx(you ? Sfx.caught : Sfx.penalty);
     setState(() {});
-    _after(1900, _startRound);
+    if (g.phase == HoldPhase.over) {
+      _finish();
+    } else {
+      _after(1900, _nextTurn);
+    }
+  }
+
+  void _finish() {
+    playSfx(g.winners.contains(me) ? Sfx.win : Sfx.lose);
+    setState(() {});
   }
 
   void _say(String title, String subtitle, {Color? color}) {
@@ -208,43 +234,67 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
     }
   }
 
-  /// Picks up where the game was paused.
   void _resume() {
     switch (g.phase) {
-      case HoldPhase.choose:
-        _startRound();
-        _maybeReveal();
-      case HoldPhase.reveal:
+      case HoldPhase.call:
+        _nextTurn();
+      case HoldPhase.race:
         _after(600, _settle);
       case HoldPhase.over:
         break;
     }
   }
 
+  // ------------------------------------------------------------- human
+
+  void _chooseCall(HoldCall call) {
+    HapticFeedback.selectionClick();
+    playSfx(Sfx.tick);
+    setState(() => _call = call);
+  }
+
+  void _pickCard(int index) {
+    final call = _call;
+    if (call == null || g.current != me || g.phase != HoldPhase.call) return;
+    HapticFeedback.lightImpact();
+    playSfx(Sfx.card);
+    _place(me, call, index);
+  }
+
   // ------------------------------------------------------------------- UI
 
+  bool get _myTurn => g.current == me && g.phase == HoldPhase.call;
+
   String get _status {
+    final last = g.last;
     switch (g.phase) {
-      case HoldPhase.choose:
-        return g.picks.containsKey(me)
-            ? 'Waiting for the others…'
-            : 'Pick a card to put in the box';
-      case HoldPhase.reveal:
-        if (!g.isMatch) return 'No match… don\'t press!';
+      case HoldPhase.race:
         final i = g.presses.indexOf(me);
-        return i >= 0 ? 'You pressed #${i + 1}' : 'Same number! Press HOLD!';
+        return i >= 0 ? 'You pressed #${i + 1}' : 'MATCH! Press HOLD!';
       case HoldPhase.over:
         return '';
+      case HoldPhase.call:
+        if (_myTurn) {
+          return _call == null
+              ? '1 · Call a ${g.guess.label.toLowerCase()}'
+              : '2 · Pick one of your cards (called ${_call!.label})';
+        }
+        if (last != null && !last.match) {
+          return 'No match — the box keeps ${g.box.length}';
+        }
+        return "${g.players[g.current].name}'s turn…";
     }
   }
 
   @override
   Widget build(BuildContext context) {
-    final match = g.phase == HoldPhase.reveal && g.isMatch;
+    final race = g.phase == HoldPhase.race;
     return PartyScaffold(
       mode: widget.mode,
-      subtitle: 'Round ${g.round} · ${widget.difficulty.label}',
-      accent: match ? const Color(0xFFF4B620) : Palette.brand,
+      subtitle:
+          'Guess the ${g.guess.label.toLowerCase()} · '
+          '${widget.difficulty.label}',
+      accent: race ? gold : Palette.brand,
       onMenu: _menu,
       child: Stack(
         children: [
@@ -253,17 +303,18 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
               _opponents(),
               Expanded(child: _table()),
               Padding(
-                padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
+                padding: const EdgeInsets.fromLTRB(16, 2, 16, 8),
                 child: Text(
                   _status,
                   style: font(
                     15,
                     weight: 600,
-                    color: match ? const Color(0xFFF4B620) : Palette.text,
+                    color: race ? gold : Palette.text,
                   ),
                 ),
               ),
-              _holdButton(match),
+              if (_myTurn && _call == null) _callPanel(),
+              _holdButton(race),
               _hand(),
             ],
           ),
@@ -286,85 +337,131 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
   }
 
   Widget _seat(HoldPlayer p) {
-    final picked = g.picks.containsKey(p.seat);
+    final turn = g.current == p.seat && g.phase == HoldPhase.call;
     final press = g.presses.indexOf(p.seat);
-    Widget status;
-    if (g.phase == HoldPhase.choose) {
-      status = picked
-          ? const PartyChip('READY', color: Color(0xFF2EA358))
-          : const ThinkingDots();
-    } else if (g.phase == HoldPhase.reveal && press >= 0) {
-      status = PartyChip('#${press + 1}', color: const Color(0xFFE09A00));
-    } else {
-      status = const SizedBox(height: 20);
-    }
     return Column(
       children: [
         Stack(
           clipBehavior: Clip.none,
           children: [
-            SeatAvatar(seat: p.seat, name: p.name),
+            SeatAvatar(seat: p.seat, name: p.name, active: turn),
             Positioned(
               right: -6,
               bottom: -2,
               child: _CountBadge(count: p.hand.length),
             ),
+            if (turn)
+              const Positioned(right: -16, top: -4, child: ThinkingDots()),
           ],
         ),
         const SizedBox(height: 4),
-        Text(p.name, style: font(13, weight: 600, color: Palette.muted)),
+        Text(
+          p.name,
+          style: font(
+            13,
+            weight: 600,
+            color: turn ? Palette.text : Palette.muted,
+          ),
+        ),
         const SizedBox(height: 4),
-        SizedBox(height: 24, child: Center(child: status)),
+        SizedBox(
+          height: 22,
+          child: g.phase == HoldPhase.race && press >= 0
+              ? PartyChip('#${press + 1}', color: const Color(0xFFE09A00))
+              : null,
+        ),
       ],
     );
   }
 
   Widget _table() {
-    return LayoutBuilder(
-      builder: (context, box) {
-        final cardW = min(
-          56.0,
-          (box.maxWidth - 32) / max(4, g.players.length) - 8,
-        );
-        return Stack(
-          alignment: Alignment.center,
+    final last = g.last;
+    final race = g.phase == HoldPhase.race;
+    return Stack(
+      alignment: Alignment.center,
+      children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                _boxPile(),
-                const SizedBox(height: 18),
-                SizedBox(
-                  // Card + lift for matches + seat avatar underneath.
-                  height: cardW * cardAspect + 44,
-                  child: _showReveal ? _revealRow(cardW) : _pickedRow(cardW),
-                ),
-              ],
-            ),
-            Align(
-              alignment: const Alignment(0, -0.95),
-              child: TableBannerView(banner: _banner),
+            SizedBox(width: 132, child: _boxPile()),
+            const SizedBox(width: 18),
+            SizedBox(
+              width: 132,
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  FittedBox(
+                    fit: BoxFit.scaleDown,
+                    child: Text(
+                      last == null
+                          ? 'No card yet'
+                          : '${g.players[last.seat].name} called ${last.call.label}',
+                      style: font(14, weight: 650, color: Palette.muted),
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  last == null
+                      ? SizedBox(width: 84, height: 84 * cardAspect)
+                      : TweenAnimationBuilder<double>(
+                          key: ValueKey(_playId),
+                          tween: Tween(begin: 0, end: 1),
+                          duration: const Duration(milliseconds: 460),
+                          curve: Curves.easeOutBack,
+                          builder: (context, v, child) => Transform(
+                            alignment: Alignment.center,
+                            transform: Matrix4.identity()
+                              ..setEntry(3, 2, 0.0015)
+                              ..rotateY((1 - v.clamp(0.0, 1.0)) * pi / 2),
+                            child: child,
+                          ),
+                          child: PlayingCard(
+                            width: 84,
+                            face: last.card.light,
+                            glow: race ? gold : null,
+                          ),
+                        ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 22,
+                    child: last == null
+                        ? null
+                        : PartyChip(
+                            last.match ? 'MATCH' : 'NO MATCH',
+                            color: last.match
+                                ? const Color(0xFFE09A00)
+                                : Palette.surfaceHigh,
+                          ),
+                  ),
+                ],
+              ),
             ),
           ],
-        );
-      },
+        ),
+        Align(
+          alignment: const Alignment(0, -0.98),
+          child: TableBannerView(banner: _banner),
+        ),
+      ],
     );
   }
 
   Widget _boxPile() {
     final n = g.box.length;
     return Column(
+      mainAxisSize: MainAxisSize.min,
       children: [
+        Text('Box', style: font(14, weight: 650, color: Palette.muted)),
+        const SizedBox(height: 8),
         SizedBox(
-          width: 96,
-          height: 96 * cardAspect * 0.62,
+          width: 84,
+          height: 84 * cardAspect,
           child: Stack(
             alignment: Alignment.center,
             children: [
               if (n == 0)
                 Container(
                   width: 70,
-                  height: 70 * cardAspect * 0.62,
+                  height: 70 * cardAspect,
                   decoration: BoxDecoration(
                     borderRadius: BorderRadius.circular(10),
                     border: Border.all(
@@ -375,108 +472,88 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
                 ),
               for (var i = 0; i < min(n, 5); i++)
                 Transform.translate(
-                  offset: Offset((i - 2) * 3.0, -i * 2.0),
+                  offset: Offset((i - 2) * 2.5, -i * 2.0),
                   child: Transform.rotate(
-                    angle: (i.isEven ? -1 : 1) * 0.08 * i,
-                    child: const PlayingCard(width: 46),
+                    angle: (i.isEven ? -1 : 1) * 0.06 * i,
+                    child: const PlayingCard(width: 64),
                   ),
                 ),
             ],
           ),
         ),
-        const SizedBox(height: 6),
-        Text(
-          n == 0 ? 'Box is empty' : 'Box · $n card${n == 1 ? '' : 's'}',
-          style: font(14, weight: 650, color: Palette.muted),
+        const SizedBox(height: 8),
+        FittedBox(
+          fit: BoxFit.scaleDown,
+          child: Text(
+            '$n card${n == 1 ? '' : 's'} · stock ${g.stock.length}',
+            style: font(13, weight: 600, color: Palette.muted),
+          ),
         ),
       ],
     );
   }
 
-  Widget _slot(int seat, double w, Widget card) {
-    final p = g.players[seat];
+  Widget _callPanel() {
+    Widget chip(String label, Color color, Color fg, HoldCall call) => Padding(
+      padding: const EdgeInsets.all(3),
+      child: Material(
+        color: color,
+        borderRadius: BorderRadius.circular(12),
+        child: InkWell(
+          borderRadius: BorderRadius.circular(12),
+          onTap: () => _chooseCall(call),
+          child: SizedBox(
+            width: g.guess == HoldGuess.number ? 54 : 76,
+            height: 44,
+            child: Center(
+              child: Text(label, style: font(18, weight: 700, color: fg)),
+            ),
+          ),
+        ),
+      ),
+    );
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          card,
-          const SizedBox(height: 6),
-          SeatAvatar(seat: seat, name: p.name, size: 18),
-        ],
+      padding: const EdgeInsets.fromLTRB(12, 0, 12, 8),
+      child: Wrap(
+        alignment: WrapAlignment.center,
+        children: g.guess == HoldGuess.number
+            ? [
+                for (var v = 0; v <= 9; v++)
+                  chip(
+                    '$v',
+                    Palette.surfaceHigh,
+                    Palette.text,
+                    HoldCall.number(v),
+                  ),
+              ]
+            : [
+                for (final c in CardColor.light)
+                  chip(
+                    c.label,
+                    Palette.of(c),
+                    Palette.onColor(c),
+                    HoldCall.color(c),
+                  ),
+              ],
       ),
     );
   }
 
-  /// Face-down cards of whoever has already picked this round.
-  Widget _pickedRow(double w) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        for (final p in g.players)
-          _slot(
-            p.seat,
-            w,
-            g.picks.containsKey(p.seat)
-                ? PlayingCard(width: w)
-                : SizedBox(width: w, height: w * cardAspect),
-          ),
-      ],
-    );
-  }
-
-  Widget _revealRow(double w) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: [
-        for (final (seat, card) in g.revealed)
-          _slot(
-            seat,
-            w,
-            TweenAnimationBuilder<double>(
-              key: ValueKey('${g.round}-$seat'),
-              tween: Tween(begin: 0, end: 1),
-              duration: Duration(milliseconds: 380 + seat * 60),
-              curve: Curves.easeOutBack,
-              builder: (context, v, child) => Transform(
-                alignment: Alignment.center,
-                transform: Matrix4.identity()
-                  ..setEntry(3, 2, 0.0015)
-                  ..rotateY((1 - v.clamp(0.0, 1.0)) * pi / 2),
-                child: child,
-              ),
-              child: Transform.translate(
-                offset: Offset(
-                  0,
-                  g.matches.contains(card.light.value) ? -8 : 0,
-                ),
-                child: PlayingCard(
-                  width: w,
-                  face: card.light,
-                  glow: g.matches.contains(card.light.value)
-                      ? const Color(0xFFF4B620)
-                      : null,
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-
-  Widget _holdButton(bool match) {
-    final live = g.phase == HoldPhase.reveal && !g.presses.contains(me);
+  Widget _holdButton(bool race) {
+    final live = race
+        ? !g.presses.contains(me)
+        : g.phase == HoldPhase.call && g.box.isNotEmpty;
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 0, 16, 10),
       child: _Pulse(
-        active: match && live,
+        active: race && live,
         child: SizedBox(
           width: double.infinity,
-          height: 62,
+          height: 60,
           child: FilledButton(
             onPressed: live ? () => _press(me) : null,
             style: FilledButton.styleFrom(
-              backgroundColor: match ? Palette.brand : const Color(0xFF9B2A21),
+              backgroundColor: race ? Palette.brand : const Color(0xFF5C2520),
               disabledBackgroundColor: Palette.surfaceHigh,
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(18),
@@ -496,41 +573,40 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
     );
   }
 
+  /// Your cards, face down: you never see what you are putting in the box.
   Widget _hand() {
-    final hand = List.of(g.players[me].hand)
-      ..sort((a, b) => a.light.value.compareTo(b.light.value));
-    final canPick = g.phase == HoldPhase.choose && !g.picks.containsKey(me);
+    final n = g.players[me].hand.length;
+    final canPick = _myTurn && _call != null;
     return LayoutBuilder(
       builder: (context, box) {
         final w = box.maxWidth;
-        const cardW = 64.0;
+        const cardW = 58.0;
         const pad = 14.0;
-        final n = hand.length;
         final step = n > 1
-            ? max(26.0, min(cardW * 0.8, (w - pad * 2 - cardW) / (n - 1)))
+            ? max(18.0, min(cardW * 0.75, (w - pad * 2 - cardW) / (n - 1)))
             : 0.0;
         final total = n == 0 ? 0.0 : cardW + step * (n - 1);
         final scroll = total + pad * 2 > w;
         final start = scroll ? pad : (w - total) / 2;
         final stack = SizedBox(
           width: scroll ? total + pad * 2 : w,
-          height: cardW * cardAspect + 18,
+          height: cardW * cardAspect + 16,
           child: Stack(
             clipBehavior: Clip.none,
             children: [
               for (var i = 0; i < n; i++)
                 AnimatedPositioned(
-                  key: ValueKey(hand[i].id),
                   duration: const Duration(milliseconds: 240),
                   curve: Curves.easeOutCubic,
                   left: start + i * step,
-                  top: canPick ? 0 : 14,
+                  top: canPick ? 0 : 12,
                   child: GestureDetector(
-                    onTap: () => _pick(hand[i]),
+                    onTap: () => _pickCard(i),
                     child: PlayingCard(
                       width: cardW,
-                      face: hand[i].light,
-                      dimmed: !canPick,
+                      glow: canPick
+                          ? Colors.white.withValues(alpha: 0.3)
+                          : null,
                     ),
                   ),
                 ),
@@ -561,7 +637,7 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
       ..sort((a, b) => a.hand.length.compareTo(b.hand.length));
     return PartyResults(
       title: title,
-      subtitle: 'Round ${g.round} · first to empty their hand',
+      subtitle: 'First to empty their hand',
       won: won,
       rows: [
         for (final p in rows)

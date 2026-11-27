@@ -150,12 +150,18 @@ void main() {
   });
 
   group('Hold Card', () {
-    HoldCardGame hold(int players) => HoldCardGame(
-      players: [
-        for (var i = 0; i < players; i++) HoldPlayer(i, 'P$i', isHuman: i == 0),
-      ],
-      rng: Random(2),
-    );
+    HoldCardGame hold(int players, {HoldGuess guess = HoldGuess.number}) {
+      final g = HoldCardGame(
+        players: [
+          for (var i = 0; i < players; i++)
+            HoldPlayer(i, 'P$i', isHuman: i == 0),
+        ],
+        guess: guess,
+        rng: Random(2),
+      );
+      g.current = 0;
+      return g;
+    }
 
     void setHands(HoldCardGame g, List<List<GameCard>> hands) {
       for (var i = 0; i < hands.length; i++) {
@@ -165,141 +171,181 @@ void main() {
       }
     }
 
-    test('deals ten number cards each', () {
-      final g = hold(6);
+    test('deals ten unseen cards each from the full deck', () {
+      final g = hold(4);
       for (final p in g.players) {
         expect(p.hand.length, 10);
-        expect(p.hand.every((c) => c.light.kind == CardKind.number), isTrue);
       }
+      expect(g.stock.length, 108 - 40);
     });
 
-    test('a match: the slowest presser takes the box', () {
+    test('a miss stays in the box and the turn moves on', () {
       final g = hold(3);
-      final a = n(5), b = n(5, CardColor.blue), c = n(2);
       setHands(g, [
-        [a, n(1)],
-        [b, n(1)],
-        [c, n(1)],
+        [n(3), n(1)],
+        [n(2), n(1)],
+        [n(4), n(1)],
       ]);
-      g.pick(0, a);
-      g.pick(1, b);
-      g.pick(2, c);
-      g.reveal();
-      expect(g.matches, {5});
-      expect(g.box.length, 3);
-      expect(g.press(2), isNull);
+      final play = g.place(0, const HoldCall.number(7), 0);
+      expect(play.match, isFalse);
+      expect(g.box.length, 1);
+      expect(g.phase, HoldPhase.call);
+      expect(g.current, 1);
+      g.place(1, const HoldCall.number(9), 0);
+      expect(g.box.length, 2);
+      expect(g.current, 2);
+    });
+
+    test('a match starts a race; the slowest takes the box', () {
+      final g = hold(3);
+      setHands(g, [
+        [n(3), n(1)],
+        [n(7), n(1)],
+        [n(4), n(1)],
+      ]);
+      g.place(0, const HoldCall.number(5), 0);
+      final play = g.place(1, const HoldCall.number(7), 0);
+      expect(play.match, isTrue);
+      expect(g.phase, HoldPhase.race);
+      expect(g.press(1), isNull);
       expect(g.press(0), isNull);
-      final r = g.press(1)!;
-      expect(r.taker, 1);
-      expect(r.taken, 3);
-      expect(g.players[1].hand.length, 4);
+      final r = g.press(2)!;
+      expect(r.taker, 2);
+      expect(r.taken, 2);
+      expect(g.players[2].hand.length, 4);
       expect(g.box, isEmpty);
-      expect(g.phase, HoldPhase.choose);
+      expect(g.current, 2, reason: 'play continues after the placer');
     });
 
     test('someone who never presses takes the box', () {
       final g = hold(3);
-      final a = n(5), b = n(5, CardColor.blue), c = n(2);
       setHands(g, [
-        [a, n(1)],
-        [b, n(1)],
-        [c, n(1)],
+        [n(7), n(1)],
+        [n(2), n(1)],
+        [n(4), n(1)],
       ]);
-      g.pick(0, a);
-      g.pick(1, b);
-      g.pick(2, c);
-      g.reveal();
-      g.press(1);
+      g.place(0, const HoldCall.number(7), 0);
+      g.press(0);
       g.press(2);
-      final r = g.settle();
-      expect(r.taker, 0);
+      expect(g.settle().taker, 1);
     });
 
-    test('no match: the box carries over; a false press takes it', () {
+    test('wilds always match; Wild +4 also costs 4', () {
       final g = hold(2);
       setHands(g, [
-        [n(1), n(3), n(9)],
-        [n(2), n(4), n(9, CardColor.blue)],
+        [face(CardColor.wild, CardKind.wildDraw, draw: 4), n(1)],
+        [n(2), n(3)],
       ]);
-      g.pick(0, g.players[0].hand[0]);
-      g.pick(1, g.players[1].hand[0]);
-      g.reveal();
-      expect(g.isMatch, isFalse);
-      final r = g.settle();
-      expect(r.taker, isNull);
-      expect(g.box.length, 2);
-
-      g.pick(0, g.players[0].hand[0]);
-      g.pick(1, g.players[1].hand[0]);
-      g.reveal();
-      final f = g.press(0)!;
-      expect(f.falsePress, isTrue);
-      expect(f.taker, 0);
-      expect(f.taken, 4);
+      final play = g.place(0, const HoldCall.number(0), 0);
+      expect(play.match, isTrue);
+      expect(play.drew, 4);
       expect(g.players[0].hand.length, 5);
     });
 
-    test('emptying your hand wins; ties share the win', () {
+    test('number mode: +2 never matches and its owner draws 2', () {
       final g = hold(2);
       setHands(g, [
-        [n(1)],
-        [n(2)],
+        [face(CardColor.red, CardKind.draw, draw: 2), n(1)],
+        [n(2), n(3)],
       ]);
-      g.pick(0, g.players[0].hand.first);
-      g.pick(1, g.players[1].hand.first);
-      g.reveal();
-      g.settle();
-      expect(g.phase, HoldPhase.over);
-      expect(g.winners, [0, 1]);
+      final play = g.place(0, const HoldCall.number(2), 0);
+      expect(play.match, isFalse);
+      expect(play.drew, 2);
+      expect(g.players[0].hand.length, 3);
     });
 
-    test('cannot pick twice or out of turn', () {
+    test('color mode: color decides, +2 still costs 2', () {
+      final g = hold(2, guess: HoldGuess.color);
+      setHands(g, [
+        [face(CardColor.blue, CardKind.draw, draw: 2), n(1)],
+        [n(2, CardColor.green), n(3)],
+      ]);
+      expect(
+        () => g.place(0, const HoldCall.number(2), 0),
+        throwsStateError,
+        reason: 'color mode needs a color call',
+      );
+      final play = g.place(0, const HoldCall.color(CardColor.blue), 0);
+      expect(play.match, isTrue);
+      expect(play.drew, 2);
+    });
+
+    test('skip and reverse change the turn order', () {
+      final g = hold(3);
+      setHands(g, [
+        [face(CardColor.red, CardKind.skip), n(1)],
+        [n(2), n(1)],
+        [face(CardColor.red, CardKind.reverse), n(1)],
+      ]);
+      g.place(0, const HoldCall.number(9), 0);
+      expect(g.current, 2);
+      g.place(2, const HoldCall.number(9), 0);
+      expect(g.direction, -1);
+      expect(g.current, 1);
+    });
+
+    test('a false press takes the box', () {
       final g = hold(2);
-      final card = g.players[0].hand.first;
-      g.pick(0, card);
-      expect(() => g.pick(0, g.players[0].hand.first), throwsStateError);
-      expect(() => g.reveal(), throwsStateError);
+      setHands(g, [
+        [n(3), n(1)],
+        [n(2), n(1)],
+      ]);
+      g.place(0, const HoldCall.number(7), 0);
+      final r = g.press(1)!;
+      expect(r.falsePress, isTrue);
+      expect(r.taker, 1);
+      expect(g.players[1].hand.length, 3);
     });
 
-    test('bots finish games', () {
-      for (var seed = 0; seed < 60; seed++) {
-        final rng = Random(seed);
-        final count = 2 + seed % 5;
-        final g = HoldCardGame(
-          players: [for (var i = 0; i < count; i++) HoldPlayer(i, 'B$i')],
-          rng: rng,
-        );
-        final bots = [
-          for (var i = 0; i < count; i++)
-            HoldBot(Difficulty.values[i % 3], rng),
-        ];
-        final total = count * 10;
-        var rounds = 0;
-        while (g.phase != HoldPhase.over) {
-          expect(++rounds, lessThan(3000));
-          for (final p in g.players) {
-            g.pick(p.seat, bots[p.seat].pick(p));
-          }
-          g.reveal();
-          if (g.isMatch) {
-            // Press in order of reaction time; misses never press.
-            final times = [
-              for (final p in g.players) (p.seat, bots[p.seat].reaction()),
-            ]..removeWhere((t) => t.$2 == null);
-            times.sort((a, b) => a.$2!.compareTo(b.$2!));
-            HoldResult? r;
-            for (final (seat, _) in times) {
-              r = g.press(seat) ?? r;
+    test('the last card wins unless its owner takes the box', () {
+      final g = hold(2);
+      setHands(g, [
+        [n(3)],
+        [n(2), n(1)],
+      ]);
+      g.place(0, const HoldCall.number(7), 0);
+      expect(g.phase, HoldPhase.over);
+      expect(g.winners, [0]);
+    });
+
+    test('bots finish games in both modes', () {
+      for (final guess in HoldGuess.values) {
+        for (var seed = 0; seed < 40; seed++) {
+          final rng = Random(seed);
+          final count = 2 + seed % 5;
+          final g = HoldCardGame(
+            players: [for (var i = 0; i < count; i++) HoldPlayer(i, 'B$i')],
+            guess: guess,
+            rng: rng,
+          );
+          final bots = [
+            for (var i = 0; i < count; i++)
+              HoldBot(Difficulty.values[i % 3], rng),
+          ];
+          var turns = 0;
+          while (g.phase != HoldPhase.over) {
+            expect(++turns, lessThan(20000));
+            final seat = g.current;
+            final p = g.players[seat];
+            g.place(seat, bots[seat].call(guess), bots[seat].pick(p));
+            if (g.phase == HoldPhase.race) {
+              final times = [
+                for (final q in g.players) (q.seat, bots[q.seat].reaction()),
+              ]..removeWhere((t) => t.$2 == null);
+              times.sort((a, b) => a.$2!.compareTo(b.$2!));
+              for (final (s, _) in times) {
+                g.press(s);
+              }
+              if (g.phase == HoldPhase.race) g.settle();
             }
-            if (g.phase == HoldPhase.reveal) g.settle();
-          } else {
-            g.settle();
+            final cards =
+                g.stock.length +
+                g.box.length +
+                g.players.fold(0, (s, p) => s + p.hand.length);
+            expect(cards, 108, reason: 'cards are conserved');
           }
-          final cards =
-              g.box.length + g.players.fold(0, (s, p) => s + p.hand.length);
-          expect(cards, total, reason: 'cards are conserved');
+          expect(g.winners, isNotEmpty);
         }
-        expect(g.winners, isNotEmpty);
       }
     });
   });

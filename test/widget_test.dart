@@ -285,16 +285,20 @@ void main() {
       ),
     );
     expect(find.text('HOLD CARD'), findsOneWidget);
-    expect(find.text('Pick a card to put in the box'), findsOneWidget);
-    for (var i = 0; i < 60; i++) {
+    var placed = 0;
+    for (var i = 0; i < 80; i++) {
       await tester.pump(const Duration(milliseconds: 500));
-      if (find.text('Pick a card to put in the box').evaluate().isNotEmpty) {
+      if (find.text('1 · Call a number').evaluate().isNotEmpty) {
+        await tester.tap(find.text('7').last);
+        await tester.pump();
         // The hand is the last row of cards on screen.
         await tester.tap(find.byType(PlayingCard).last, warnIfMissed: false);
-      } else if (find.text('Same number! Press HOLD!').evaluate().isNotEmpty) {
+        placed++;
+      } else if (find.text('MATCH! Press HOLD!').evaluate().isNotEmpty) {
         await tester.tap(find.text('HOLD CARD'));
       }
     }
+    expect(placed, greaterThan(0));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox());
   });

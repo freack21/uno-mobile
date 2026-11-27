@@ -3,11 +3,23 @@ import 'dart:math';
 import 'cards.dart';
 import 'rules.dart';
 
-/// Hold Card: everyone secretly picks a number card, all are revealed into
-/// the box together. If two or more show the same number, everyone races to
-/// press HOLD; the slowest (or anyone who never presses) takes the whole box.
-/// Pressing when nothing matches takes the box too. Empty your hand to win.
-enum HoldPhase { choose, reveal, over }
+/// Hold Card: every player holds face-down cards they cannot see.
+///
+/// On your turn you call a number (or a color), then put one of your unseen
+/// cards into the box, face up. If it matches the call, everyone races to
+/// press HOLD and the slowest takes the whole box. Otherwise the card stays
+/// in the box and play moves on. Wilds always match. In number mode +2 never
+/// matches and its owner draws 2 from the stock; a Wild +4 matches but its
+/// owner draws 4. Skip and Reverse keep their usual effect on turn order.
+/// Pressing HOLD without a match takes the box. Empty your hand to win.
+enum HoldGuess {
+  number,
+  color;
+
+  String get label => this == number ? 'Number' : 'Color';
+}
+
+enum HoldPhase { call, race, over }
 
 class HoldPlayer {
   HoldPlayer(this.seat, this.name, {this.isHuman = false});
@@ -15,104 +27,167 @@ class HoldPlayer {
   final int seat;
   final String name;
   final bool isHuman;
+
+  /// Face-down cards; nobody can see them, not even their owner.
   final List<GameCard> hand = [];
+}
+
+/// What the player on turn called: a number (0-9) or a color.
+class HoldCall {
+  const HoldCall.number(int this.number) : color = null;
+  const HoldCall.color(CardColor this.color) : number = null;
+
+  final int? number;
+  final CardColor? color;
+
+  String get label => number != null ? '$number' : color!.label;
+}
+
+/// The result of putting a card in the box.
+class HoldPlay {
+  const HoldPlay({
+    required this.seat,
+    required this.call,
+    required this.card,
+    required this.match,
+    this.drew = 0,
+  });
+
+  final int seat;
+  final HoldCall call;
+  final GameCard card;
+  final bool match;
+
+  /// Penalty cards the player drew from the stock (+2 / Wild +4).
+  final int drew;
 }
 
 class HoldResult {
   const HoldResult({this.taker, this.taken = 0, this.falsePress = false});
 
-  /// Who took the box; null when nothing matched and the box stays.
   final int? taker;
   final int taken;
 
-  /// The taker pressed HOLD although nothing matched.
+  /// The taker pressed HOLD when nothing matched.
   final bool falsePress;
 }
 
 class HoldCardGame {
-  HoldCardGame({required this.players, Random? rng, this.handSize = 10})
-    : rng = rng ?? Random() {
+  HoldCardGame({
+    required this.players,
+    this.guess = HoldGuess.number,
+    Random? rng,
+    this.handSize = 10,
+  }) : rng = rng ?? Random() {
     if (players.length < 2) throw ArgumentError('Need at least 2 players');
-    // Number cards only: 76 in a classic deck, enough for 6 x 10.
-    final deck = buildDeck(
-      DeckType.classic,
-      this.rng,
-    ).where((c) => c.light.kind == CardKind.number).toList();
+    stock.addAll(buildDeck(DeckType.classic, this.rng));
     for (var i = 0; i < handSize; i++) {
       for (final p in players) {
-        p.hand.add(deck.removeLast());
+        p.hand.add(stock.removeLast());
       }
     }
+    current = this.rng.nextInt(players.length);
   }
 
   final List<HoldPlayer> players;
+  final HoldGuess guess;
   final Random rng;
   final int handSize;
 
-  /// Cards waiting for someone to take them.
+  /// Undealt cards; penalties are drawn from here.
+  final List<GameCard> stock = [];
+
+  /// Cards waiting for someone to take them, newest last.
   final List<GameCard> box = [];
 
-  /// Cards picked this round (seat -> card), face down until the reveal.
-  final Map<int, GameCard> picks = {};
+  int current = 0;
+  int direction = 1;
+  HoldPhase phase = HoldPhase.call;
 
-  /// Cards revealed in the last reveal, in seat order.
-  List<(int, GameCard)> revealed = const [];
+  /// The latest card put in the box and what was called for it.
+  HoldPlay? last;
 
-  /// Numbers that showed up more than once in the last reveal.
-  Set<int> matches = const {};
-
-  /// Seats in the order they pressed HOLD this reveal.
+  /// Seats in the order they pressed HOLD during a race.
   final List<int> presses = [];
-
-  HoldPhase phase = HoldPhase.choose;
-  int round = 1;
   List<int> winners = const [];
 
-  bool get isMatch => matches.isNotEmpty;
-  bool get allPicked => picks.length == players.length;
-
-  void pick(int seat, GameCard card) {
-    if (phase != HoldPhase.choose) throw StateError('Not picking now');
-    if (picks.containsKey(seat)) throw StateError('Already picked');
-    final hand = players[seat].hand;
-    if (!hand.any((c) => c.id == card.id)) throw StateError('Not in hand');
-    hand.removeWhere((c) => c.id == card.id);
-    picks[seat] = card;
+  int nextSeat(int from) {
+    final n = players.length;
+    return ((from + direction) % n + n) % n;
   }
 
-  void reveal() {
-    if (phase != HoldPhase.choose || !allPicked) {
-      throw StateError('Everyone must pick first');
+  /// Whether [face] answers [call].
+  bool matches(CardFace face, HoldCall call) {
+    if (face.isWild) return true;
+    if (call.number != null) {
+      return face.kind == CardKind.number && face.value == call.number;
     }
-    revealed = [for (final p in players) (p.seat, picks[p.seat]!)];
-    picks.clear();
-    box.addAll(revealed.map((r) => r.$2));
-    final counts = <int, int>{};
-    for (final (_, c) in revealed) {
-      counts[c.light.value] = (counts[c.light.value] ?? 0) + 1;
+    return face.color == call.color;
+  }
+
+  /// [seat] calls [call] and puts the card at [index] of their hand in the box.
+  HoldPlay place(int seat, HoldCall call, int index) {
+    if (phase != HoldPhase.call) throw StateError('Not the time to play');
+    if (seat != current) throw StateError('Not your turn');
+    if ((call.number != null) != (guess == HoldGuess.number)) {
+      throw StateError('Call a ${guess.label.toLowerCase()}');
     }
-    matches = {
-      for (final e in counts.entries)
-        if (e.value > 1) e.key,
+    if (call.number != null && (call.number! < 0 || call.number! > 9)) {
+      throw StateError('Call a number from 0 to 9');
+    }
+    final p = players[seat];
+    if (index < 0 || index >= p.hand.length) throw StateError('No such card');
+    final card = p.hand.removeAt(index);
+    box.add(card);
+    final f = card.light;
+    final match = matches(f, call);
+    // +2 / Wild +4 cost their owner cards from the stock in both modes.
+    final penalty = switch (f.kind) {
+      CardKind.draw || CardKind.wildDraw => f.draw,
+      _ => 0,
     };
+    var drew = 0;
+    for (var i = 0; i < penalty && stock.isNotEmpty; i++) {
+      p.hand.add(stock.removeLast());
+      drew++;
+    }
+    final play = HoldPlay(
+      seat: seat,
+      call: call,
+      card: card,
+      match: match,
+      drew: drew,
+    );
+    last = play;
     presses.clear();
-    phase = HoldPhase.reveal;
+    if (match) {
+      phase = HoldPhase.race;
+    } else {
+      _endTurn();
+    }
+    return play;
   }
 
-  /// [seat] presses HOLD. Without a match this is a false press: they take
-  /// the box at once. Returns the result when the reveal is settled.
+  /// [seat] presses HOLD. During a race this counts their reaction; at any
+  /// other time it is a false press and they take the box at once.
+  /// Returns the result when the box changes hands.
   HoldResult? press(int seat) {
-    if (phase != HoldPhase.reveal || presses.contains(seat)) return null;
-    if (!isMatch) return _settle(seat, falsePress: true);
+    if (phase == HoldPhase.over) return null;
+    if (phase == HoldPhase.call) {
+      if (box.isEmpty) return null;
+      final taken = _give(seat);
+      _checkWinners();
+      return HoldResult(taker: seat, taken: taken, falsePress: true);
+    }
+    if (presses.contains(seat)) return null;
     presses.add(seat);
     return presses.length == players.length ? settle() : null;
   }
 
-  /// Ends the reveal: with a match, the slowest presser (or one of those who
-  /// never pressed) takes the box; without one the box carries over.
+  /// Ends a race: the slowest presser takes the box, or one of those who
+  /// never pressed.
   HoldResult settle() {
-    if (phase != HoldPhase.reveal) throw StateError('Nothing to settle');
-    if (!isMatch) return _settle(null);
+    if (phase != HoldPhase.race) throw StateError('No race to settle');
     final missed = [
       for (final p in players)
         if (!presses.contains(p.seat)) p.seat,
@@ -120,38 +195,66 @@ class HoldCardGame {
     final taker = missed.isEmpty
         ? presses.last
         : missed[rng.nextInt(missed.length)];
-    return _settle(taker);
+    final taken = _give(taker);
+    _endTurn();
+    return HoldResult(taker: taker, taken: taken);
   }
 
-  HoldResult _settle(int? taker, {bool falsePress = false}) {
-    final taken = taker == null ? 0 : box.length;
-    if (taker != null) {
-      players[taker].hand.addAll(box);
-      box.clear();
+  int _give(int seat) {
+    final n = box.length;
+    players[seat].hand.addAll(box);
+    box.clear();
+    return n;
+  }
+
+  /// Applies Skip / Reverse of the last card and passes the turn.
+  void _endTurn() {
+    phase = HoldPhase.call;
+    if (_checkWinners()) return;
+    final played = last!;
+    final kind = played.card.light.kind;
+    var steps = 1;
+    if (kind == CardKind.skip) {
+      steps = 2;
+    } else if (kind == CardKind.reverse) {
+      if (players.length == 2) {
+        steps = 2;
+      } else {
+        direction = -direction;
+      }
     }
+    var s = played.seat;
+    for (var i = 0; i < steps; i++) {
+      s = nextSeat(s);
+    }
+    current = s;
+  }
+
+  bool _checkWinners() {
     final empty = [
       for (final p in players)
         if (p.hand.isEmpty) p.seat,
     ];
-    if (empty.isNotEmpty) {
-      winners = empty;
-      phase = HoldPhase.over;
-    } else {
-      round++;
-      phase = HoldPhase.choose;
-    }
-    return HoldResult(taker: taker, taken: taken, falsePress: falsePress);
+    if (empty.isEmpty) return false;
+    winners = empty;
+    phase = HoldPhase.over;
+    return true;
   }
 }
 
-/// Bot timing and habits for Hold Card.
+/// Bot habits for Hold Card.
 class HoldBot {
   HoldBot(this.difficulty, this.rng);
 
   final Difficulty difficulty;
   final Random rng;
 
-  GameCard pick(HoldPlayer p) => p.hand[rng.nextInt(p.hand.length)];
+  /// Cards are unseen, so any call is a guess.
+  HoldCall call(HoldGuess guess) => guess == HoldGuess.number
+      ? HoldCall.number(rng.nextInt(10))
+      : HoldCall.color(CardColor.light[rng.nextInt(4)]);
+
+  int pick(HoldPlayer p) => rng.nextInt(p.hand.length);
 
   /// Milliseconds to slap HOLD after a match, or null if it misses it.
   int? reaction() {
@@ -164,7 +267,7 @@ class HoldBot {
     return base + rng.nextInt(spread);
   }
 
-  /// Milliseconds until a jumpy false press when nothing matched, or null.
+  /// Milliseconds until a jumpy false press after a miss, or null.
   int? falsePress() {
     final chance = switch (difficulty) {
       Difficulty.easy => 0.07,

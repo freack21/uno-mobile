@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import '../game/cards.dart';
+import '../game/hold_card.dart';
 import '../game/modes.dart';
 import '../game/rules.dart';
 import 'exact_score_screen.dart';
@@ -26,6 +27,9 @@ class _ModeScreenState extends State<ModeScreen> {
 
   /// Exact Score target; 0 means random (20-50).
   int target = 0;
+
+  /// Hold Card: guess numbers or colors.
+  HoldGuess guess = HoldGuess.number;
   late RuleSet rules = m.rules;
 
   int get minPlayers => rules.teams
@@ -56,6 +60,7 @@ class _ModeScreenState extends State<ModeScreen> {
             mode: m,
             players: count,
             difficulty: difficulty,
+            guess: guess,
           ),
           GameKind.shedding => GameScreen(
             mode: m,
@@ -137,6 +142,16 @@ class _ModeScreenState extends State<ModeScreen> {
                     selected: target,
                     label: (v) => v == 0 ? 'Random' : '$v',
                     onChanged: (v) => setState(() => target = v),
+                  ),
+                ),
+              if (m.kind == GameKind.holdCard)
+                _Row(
+                  label: 'Guess',
+                  child: _Segments<HoldGuess>(
+                    values: HoldGuess.values,
+                    selected: guess,
+                    label: (g) => g.label,
+                    onChanged: (g) => setState(() => guess = g),
                   ),
                 ),
               if (rules.format == MatchFormat.points)
