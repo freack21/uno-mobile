@@ -57,6 +57,9 @@ class GameController extends ChangeNotifier {
   DateTime? turnDeadline;
   TableBanner? banner;
 
+  /// Bot currently "thinking" about its move, for the seat indicator.
+  int? thinkingSeat;
+
   Player get me => game.players[human];
   bool get isMyTurn => game.current == human && !game.isRoundOver && !me.out;
 
@@ -142,7 +145,8 @@ class GameController extends ChangeNotifier {
 
   void _afterChange() {
     if (_disposed) return;
-    _readEvents();
+    thinkingSeat = null;
+    final bannerShown = _readEvents();
     if (_paused) {
       notifyListeners();
       return;
@@ -163,8 +167,15 @@ class GameController extends ChangeNotifier {
       _startClock();
     } else {
       _stopClock();
+      final seat = game.current;
       final iForgot = game.vulnerable == human;
-      final delay = 750 + _rng.nextInt(450) + (iForgot ? 1400 : 0);
+      final delay =
+          _bots[seat]!.thinkTime(game, seat) +
+          // Let a banner (SKIP, +4, SWAP...) land before the next move.
+          (bannerShown ? 900 : 0) +
+          // Give the human a fair chance to still call "Last card!".
+          (iForgot ? 1500 : 0);
+      thinkingSeat = seat;
       _botTimer = Timer(Duration(milliseconds: delay), _botTurn);
     }
     notifyListeners();
@@ -248,7 +259,8 @@ class GameController extends ChangeNotifier {
 
   // --------------------------------------------------------------- banners
 
-  void _readEvents() {
+  /// Posts the newest banner; returns whether one was posted.
+  bool _readEvents() {
     TableBanner? next;
     for (final e in game.events) {
       if (e.id <= _seenEvent) continue;
@@ -256,6 +268,7 @@ class GameController extends ChangeNotifier {
     }
     if (game.events.isNotEmpty) _seenEvent = game.events.last.id;
     if (next != null) banner = next;
+    return next != null;
   }
 
   TableBanner? _bannerFor(GameEvent e) {

@@ -77,14 +77,43 @@ class Bot {
     return rng.nextDouble() < chance ? cards.first : null;
   }
 
-  /// Milliseconds a bot needs to notice a Jump-In chance.
+  /// Milliseconds a bot needs to notice a Jump-In chance. Always slower than
+  /// a human reacting to the glow, but fast enough to beat a slow turn.
   int jumpInDelay() =>
       switch (difficulty) {
-        Difficulty.easy => 1700,
-        Difficulty.normal => 1150,
-        Difficulty.hard => 750,
+        Difficulty.easy => 2300,
+        Difficulty.normal => 1700,
+        Difficulty.hard => 1200,
       } +
-      rng.nextInt(500);
+      rng.nextInt(600);
+
+  /// How long the bot "thinks" before acting, in milliseconds. Like a person:
+  /// quick when there is nothing to decide, slower with many options, a
+  /// threatening penalty or a big hand to sort through.
+  int thinkTime(Game g, int seat) {
+    final hand = g.players[seat].hand.length;
+    final int base;
+    if (g.phase == Phase.afterDraw) {
+      base = 900 + rng.nextInt(600); // look at the drawn card
+    } else if (g.canChallenge || g.pendingDraw > 0) {
+      base = 1500 + rng.nextInt(900); // stack, challenge or take it?
+    } else {
+      final options = g.playableCards(seat).length;
+      base = options == 0
+          ? 1000 +
+                rng.nextInt(600) // nothing fits: reach for the deck
+          : 1300 +
+                min(options, 6) * 150 +
+                min(hand, 12) * 25 +
+                rng.nextInt(900);
+    }
+    final pace = switch (difficulty) {
+      Difficulty.easy => 1.15,
+      Difficulty.normal => 1.0,
+      Difficulty.hard => 0.9,
+    };
+    return (base * pace).round();
+  }
 
   bool callsLast() =>
       rng.nextDouble() <

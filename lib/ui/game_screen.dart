@@ -382,7 +382,7 @@ class _Opponents extends StatelessWidget {
     final g = controller.game;
     final bots = g.players.where((p) => !p.isHuman).toList();
     return Padding(
-      padding: const EdgeInsets.fromLTRB(8, 6, 8, 0),
+      padding: const EdgeInsets.fromLTRB(8, 12, 8, 0),
       child: Row(
         children: [
           for (final p in bots)
@@ -390,6 +390,7 @@ class _Opponents extends StatelessWidget {
               child: _Seat(
                 player: p,
                 game: g,
+                thinking: controller.thinkingSeat == p.seat,
                 onCatch: () => controller.catchBot(p.seat),
               ),
             ),
@@ -403,11 +404,13 @@ class _Seat extends StatelessWidget {
   const _Seat({
     required this.player,
     required this.game,
+    required this.thinking,
     required this.onCatch,
   });
 
   final Player player;
   final Game game;
+  final bool thinking;
   final VoidCallback onCatch;
 
   @override
@@ -445,6 +448,16 @@ class _Seat extends StatelessWidget {
                 child: _CountBadge(
                   count: p.hand.length,
                   hot: p.hand.length <= 2 && !p.out,
+                ),
+              ),
+              Positioned(
+                right: -16,
+                top: -4,
+                child: AnimatedSwitcher(
+                  duration: const Duration(milliseconds: 200),
+                  child: thinking
+                      ? const _ThinkingBubble()
+                      : const SizedBox.shrink(),
                 ),
               ),
             ],
@@ -523,6 +536,69 @@ class _Avatar extends StatelessWidget {
       child: Text(
         player.name[0],
         style: font(size * 0.46, weight: 700, color: Colors.white),
+      ),
+    );
+  }
+}
+
+/// Three bouncing dots: the bot is deciding its move.
+class _ThinkingBubble extends StatefulWidget {
+  const _ThinkingBubble();
+
+  @override
+  State<_ThinkingBubble> createState() => _ThinkingBubbleState();
+}
+
+class _ThinkingBubbleState extends State<_ThinkingBubble>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _c = AnimationController(
+    vsync: this,
+    duration: const Duration(milliseconds: 900),
+  )..repeat();
+
+  @override
+  void dispose() {
+    _c.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: 'Thinking',
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
+        decoration: BoxDecoration(
+          color: Palette.cardWhite,
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(color: Palette.ink, width: 2),
+        ),
+        child: AnimatedBuilder(
+          animation: _c,
+          builder: (context, _) => Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              for (var i = 0; i < 3; i++)
+                Padding(
+                  padding: EdgeInsets.only(left: i == 0 ? 0 : 3),
+                  child: Transform.translate(
+                    offset: Offset(
+                      0,
+                      -2.5 * max(0, sin((_c.value * 2 - i * 0.22) * pi)),
+                    ),
+                    child: Container(
+                      width: 5,
+                      height: 5,
+                      decoration: const BoxDecoration(
+                        color: Palette.ink,
+                        shape: BoxShape.circle,
+                      ),
+                    ),
+                  ),
+                ),
+            ],
+          ),
+        ),
       ),
     );
   }
@@ -740,7 +816,7 @@ class _DiscardPile extends StatelessWidget {
                   ),
                 ),
               AnimatedSwitcher(
-                duration: const Duration(milliseconds: 320),
+                duration: const Duration(milliseconds: 420),
                 switchInCurve: Curves.easeOutBack,
                 transitionBuilder: (child, anim) {
                   final slide = Tween(
@@ -915,7 +991,7 @@ class _BannerViewState extends State<_BannerView> {
     if (b != null && b.id != _shown?.id) {
       _shown = b;
       _timer?.cancel();
-      _timer = Timer(const Duration(milliseconds: 1250), () {
+      _timer = Timer(const Duration(milliseconds: 1700), () {
         if (mounted) setState(() => _shown = null);
       });
     }
@@ -1444,7 +1520,7 @@ class _ResultsState extends State<_Results> {
   void initState() {
     super.initState();
     // Let the final card land before covering the table.
-    _timer = Timer(const Duration(milliseconds: 900), () {
+    _timer = Timer(const Duration(milliseconds: 1500), () {
       if (mounted) setState(() => _visible = true);
     });
   }

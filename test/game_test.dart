@@ -523,6 +523,57 @@ void main() {
     });
   });
 
+  group('bot pacing', () {
+    int avg(Difficulty d, Game g, int seat) {
+      final bot = Bot(d, Random(7));
+      var total = 0;
+      for (var i = 0; i < 200; i++) {
+        total += bot.thinkTime(g, seat);
+      }
+      return total ~/ 200;
+    }
+
+    test('think time is human-like and situational', () {
+      final stuck = setup(const RuleSet(), [
+        [num(CardColor.blue, 1), num(CardColor.blue, 2)],
+        [num(CardColor.red, 1)],
+      ], top: num(CardColor.red, 9));
+      final options = setup(const RuleSet(), [
+        [for (var v = 1; v <= 6; v++) num(CardColor.red, v)],
+        [num(CardColor.red, 1)],
+      ], top: num(CardColor.red, 9));
+
+      for (final g in [stuck, options]) {
+        for (final d in Difficulty.values) {
+          final bot = Bot(d, Random(3));
+          for (var i = 0; i < 100; i++) {
+            final t = bot.thinkTime(g, 0);
+            expect(t, inInclusiveRange(800, 4500));
+          }
+        }
+      }
+      // Deciding between many cards takes longer than reaching for the deck.
+      expect(
+        avg(Difficulty.normal, options, 0),
+        greaterThan(avg(Difficulty.normal, stuck, 0)),
+      );
+      // Harder bots are a bit quicker.
+      expect(
+        avg(Difficulty.hard, options, 0),
+        lessThan(avg(Difficulty.easy, options, 0)),
+      );
+    });
+
+    test('jump-in reaction stays slower than a second', () {
+      for (final d in Difficulty.values) {
+        final bot = Bot(d, Random(1));
+        for (var i = 0; i < 50; i++) {
+          expect(bot.jumpInDelay(), greaterThanOrEqualTo(1200));
+        }
+      }
+    });
+  });
+
   group('bot simulation', () {
     for (final mode in gameModes) {
       test('${mode.name} matches finish', () {
