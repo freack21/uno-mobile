@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  push:
+    branches: ["**"]
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          flutter-version: 3.50.1
+          cache: true
+
+      - run: flutter pub get
+      - run: dart format --output=none --set-exit-if-changed lib test
+      - run: flutter analyze
+      - run: flutter test
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Provisioner tests
+        run: node --test deploy/coolify/*.test.mjs
+
+      - name: Shell scripts
+        run: |
+          bash -n deploy/coolify/setup.sh
+          bash -n tool/build_web.sh
+          shellcheck deploy/coolify/setup.sh tool/build_web.sh
+
+  image:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build image
+        run: docker build -t uno-mobile:ci .
+      - name: Smoke test container
+        run: |
+          set -euo pipefail
+          docker run -d --name app -p 8080:8080 uno-mobile:ci
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/healthz >/dev/null && break
+            sleep 1
+          done
+          curl -fsS http://127.0.0.1:8080/healthz | grep -qx ok
+          curl -fsS http://127.0.0.1:8080/ | grep -q '<title>Last Card</title>'
+          curl -fsSI http://127.0.0.1:8080/ | grep -qi '^cache-control: no-cache'
+          curl -fsSI http://127.0.0.1:8080/sw.js | grep -qi '^cache-control: no-cache'
+          if curl -fsS http://127.0.0.1:8080/sw.js | grep -q __BUILD_VERSION__; then
+            echo "sw.js was not stamped"; exit 1
+          fi
+          curl -fsS http://127.0.0.1:8080/manifest.json | grep -q '"display": "standalone"'
+          main_js=$(curl -fsS http://127.0.0.1:8080/precache_manifest.json | grep -o 'main\.dart\.[0-9a-f]*\.js' | head -n1)
+          curl -fsSI "http://127.0.0.1:8080/$main_js" | grep -qi 'cache-control: public, max-age=31536000, immutable'
+          curl -fsSI http://127.0.0.1:8080/canvaskit/canvaskit.wasm | grep -qi '^content-type: application/wasm'
+          # SPA fallback, and redirects never carry the container port.
+          curl -fsS http://127.0.0.1:8080/some/deep/link | grep -q '<title>Last Card</title>'
+          if curl -sSI http://127.0.0.1:8080/icons | grep -qi '^location: http'; then
+            echo "absolute redirect"; exit 1
+          fi
+          test "$(docker exec app id -u)" != "0"
+          for _ in $(seq 1 20); do
+            [ "$(docker inspect -f '{{.State.Health.Status}}' app)" = healthy ] && break
+            sleep 3
+          done
+          docker inspect -f '{{.State.Health.Status}}' app | grep -qx healthy
+          docker stop -t 10 app
+          test "$(docker inspect -f '{{.State.ExitCode}}' app)" = "0"
+      - name: Container logs
+        if: failure()
+        run: docker logs app || true
+
+  deploy:
+    needs: [test, image]
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    concurrency:
+      group: deploy-production
+      cancel-in-progress: false
+    steps:
+      - name: Trigger Coolify deployment
+        env:
+          COOLIFY_DEPLOY_WEBHOOK: ${{ secrets.COOLIFY_DEPLOY_WEBHOOK }}
+          COOLIFY_TOKEN: ${{ secrets.COOLIFY_TOKEN }}
+        run: |
+          if [ -z "$COOLIFY_DEPLOY_WEBHOOK" ] || [ -z "$COOLIFY_TOKEN" ]; then
+            echo "::notice::Coolify secrets are not set; deployment skipped."
+            exit 0
+          fi
+          curl --fail-with-body --silent --show-error --request POST \
+            --header "Authorization: Bearer $COOLIFY_TOKEN" "$COOLIFY_DEPLOY_WEBHOOK"
