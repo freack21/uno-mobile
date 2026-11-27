@@ -1,0 +1,54 @@
+# Last Card (uno-mobile)
+
+A fast shedding card game for Flutter, played offline against bots.
+Original name and artwork; classic "match the color or symbol" mechanics.
+
+## Game modes
+
+| Mode | Summary |
+| --- | --- |
+| Classic | Standard 108-card deck, one round. |
+| Point Race | Round winners score leftover card points; first to 250/500/1000. |
+| Stacking | +2 on +2, +4 on +4; the first who can't stack draws the total. |
+| Seven-O | 7 swaps hands with a chosen player, 0 rotates every hand. |
+| Jump-In | Play an identical card out of turn. |
+| Draw Until Playable | Keep drawing until a card fits. |
+| Merciless | 164-card deck (+6, +10, Skip All, Discard All, Wild Draw Color), escalating stacks, 25-card knockout. |
+| Flipside | Two-sided deck; Flip turns every card to its light/dark side. |
+| Team 2v2 | You and the bot opposite you share the win. |
+| Elimination | Each round the biggest hand is knocked out. |
+| Speed | 8-second turn clock; time out = draw 2. |
+| Challenge +4 | Bluff a Wild +4 or challenge it (4 for the bluffer, 6 for a wrong challenge). |
+| Custom | Any deck, format and combination of the rules above. |
+
+Every mode has an in-app guide (mode page and the `?` button during a game),
+plus a shared "How to play" basics page.
+
+## Project layout
+
+```
+lib/game/   Pure Dart engine (no Flutter imports)
+  cards.dart   Card model and deck builders
+  rules.dart   RuleSet: every house rule as a flag
+  game.dart    Game state machine, move validation and effects
+  bot.dart     Heuristic bots (easy / normal / hard)
+  modes.dart   Mode presets and guide content
+lib/ui/     Flutter UI
+  game_controller.dart  Bot scheduling, Jump-In races, Speed clock
+  game_screen.dart      Table, hand, banners, results
+  home_screen.dart, mode_screen.dart, guide_screen.dart
+  playing_card.dart     Card renderer
+test/       Engine unit tests, bot simulations for every mode, widget smoke tests
+```
+
+## Development
+
+```bash
+flutter pub get
+flutter analyze
+flutter test
+flutter run            # device or emulator
+flutter build apk      # requires the Android SDK
+```
+
+Font: Fredoka (SIL Open Font License, `assets/fonts/OFL.txt`).
