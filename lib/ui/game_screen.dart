@@ -53,19 +53,182 @@ class _GameScreenState extends State<GameScreen> {
   Timer? _hintTimer;
   bool _busy = false;
 
-  // Positions used to fly cards from the deck during the deal.
+  // Positions cards fly between: seats, the deck, the discard pile and
+  // every card in the player's hand.
   final _stackKey = GlobalKey();
   final _deckKey = GlobalKey();
+  final _pileKey = GlobalKey();
   final _handKey = GlobalKey();
   late final _seatKeys = {
     for (var s = 1; s < widget.players; s++) s: GlobalKey(),
   };
+  final _cardKeys = <int, GlobalKey>{};
+  GlobalKey _cardKey(int id) => _cardKeys.putIfAbsent(id, GlobalKey.new);
+
+  // Cards in the air, and played cards the discard pile hides until they land.
+  final _flights = <_Flight>[];
+  final _inFlight = <int>{};
+  var _flightId = 0;
+  Game? _watched;
+  var _seenEvent = 0;
+  var _seenDealt = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    c.addListener(_onGameChanged);
+    _onGameChanged();
+  }
 
   @override
   void dispose() {
+    c.removeListener(_onGameChanged);
     _hintTimer?.cancel();
     c.dispose();
     super.dispose();
+  }
+
+  /// Turns new game events into card flights. Runs right after the change,
+  /// before the rebuild, so played cards are still laid out in the hand.
+  void _onGameChanged() {
+    if (!identical(_watched, g)) {
+      _watched = g;
+      _seenEvent = g.events.isEmpty ? 0 : g.events.last.id;
+      _seenDealt = 0;
+      _flights.clear();
+      _inFlight.clear();
+    }
+    final added = <_Flight>[];
+    // Cards drawn in the same step (a +2 hitting someone) leave the deck
+    // only once the played card has landed.
+    var landed = 0;
+    for (final e in g.events) {
+      if (e.id <= _seenEvent) continue;
+      switch (e.type) {
+        case EventType.play || EventType.jumpIn:
+          final plays = _playFlights(e);
+          added.addAll(plays);
+          for (final f in plays) {
+            landed = max(landed, f.delay + f.duration);
+          }
+        case EventType.draw ||
+            EventType.penalty ||
+            EventType.caught ||
+            EventType.challenge:
+          if (e.seat != null && (e.count ?? 0) > 0) {
+            added.addAll(_drawFlights(e.seat!, e.count!, after: landed));
+          }
+        default:
+          break;
+      }
+    }
+    if (g.events.isNotEmpty) _seenEvent = g.events.last.id;
+
+    if (c.intro == IntroStep.shuffle) _seenDealt = 0;
+    if (c.intro == IntroStep.deal) {
+      for (; _seenDealt < c.dealt; _seenDealt++) {
+        added.addAll(_drawFlights(c.dealSeatAt(_seenDealt), 1, deal: true));
+      }
+    }
+    _cardKeys.removeWhere((id, _) => !c.me.hand.any((card) => card.id == id));
+    if (added.isNotEmpty && mounted) setState(() => _flights.addAll(added));
+  }
+
+  Rect? _rectOf(GlobalKey? key) {
+    final box = key?.currentContext?.findRenderObject() as RenderBox?;
+    final root = _stackKey.currentContext?.findRenderObject() as RenderBox?;
+    if (box == null || root == null || !box.hasSize || !root.hasSize) {
+      return null;
+    }
+    if (!box.attached || !root.attached) return null;
+    return box.localToGlobal(Offset.zero, ancestor: root) & box.size;
+  }
+
+  /// A card-sized rect centered in [area].
+  Rect _cardIn(Rect area, double width) => Rect.fromCenter(
+    center: area.center,
+    width: width,
+    height: width * cardAspect,
+  );
+
+  List<_Flight> _playFlights(GameEvent e) {
+    final last = e.card;
+    final seat = e.seat;
+    final pile = _rectOf(_pileKey);
+    if (last == null || seat == null || pile == null) return const [];
+    // The combo (or single card) sits on top of the pile, in play order.
+    final symbol = g.face(last);
+    final cards = <GameCard>[];
+    for (final card in g.discard.reversed) {
+      if (cards.length == (e.count ?? 1)) break;
+      if (g.face(card).sameSymbol(symbol)) cards.insert(0, card);
+    }
+    final to = _cardIn(pile, pile.width / 1.25);
+    final avatar = _rectOf(_seatKeys[seat]);
+    final flights = <_Flight>[];
+    for (final (i, card) in cards.indexed) {
+      final fromHand = seat == GameController.human
+          ? _rectOf(_cardKeys[card.id])
+          : null;
+      final from = fromHand ?? (avatar != null ? _cardIn(avatar, 30) : null);
+      if (from == null) continue;
+      _inFlight.add(card.id);
+      flights.add(
+        _Flight(
+          id: ++_flightId,
+          from: from,
+          to: to,
+          face: g.face(card),
+          wildColors: g.sideColors,
+          reveal: fromHand == null,
+          delay: i * 120,
+          duration: 430,
+          arc: fromHand == null ? 24 : 40,
+          startAngle: fromHand == null ? -0.5 : 0,
+          endAngle: _cardTilt(card),
+          landing: card.id,
+        ),
+      );
+    }
+    return flights;
+  }
+
+  List<_Flight> _drawFlights(
+    int seat,
+    int count, {
+    bool deal = false,
+    int after = 0,
+  }) {
+    final deck = _rectOf(_deckKey);
+    final target = seat == GameController.human
+        ? _rectOf(_handKey)
+        : _rectOf(_seatKeys[seat]);
+    if (deck == null || target == null) return const [];
+    final from = _cardIn(deck, deck.width - 6);
+    final to = seat == GameController.human
+        ? _cardIn(target, 62)
+        : _cardIn(target, 22);
+    return [
+      for (var i = 0; i < min(count, 6); i++)
+        _Flight(
+          id: ++_flightId,
+          from: from,
+          to: to,
+          delay: after + i * 80,
+          duration: deal ? 380 : 400,
+          arc: 46,
+          startAngle: 0,
+          endAngle: deal ? pi * 0.9 : 0.25,
+        ),
+    ];
+  }
+
+  void _land(_Flight f) {
+    if (!mounted) return;
+    setState(() {
+      _flights.remove(f);
+      if (f.landing != null) _inFlight.remove(f.landing);
+    });
   }
 
   Game get g => c.game;
@@ -361,6 +524,8 @@ class _GameScreenState extends State<GameScreen> {
                             controller: c,
                             onDraw: _onDraw,
                             deckKey: _deckKey,
+                            pileKey: _pileKey,
+                            inFlight: _inFlight,
                           ),
                         ),
                         _StatusBar(
@@ -376,6 +541,7 @@ class _GameScreenState extends State<GameScreen> {
                             controller: c,
                             onTap: _onCardTap,
                             combo: _comboValid ? _combo : const [],
+                            cardKey: _cardKey,
                           ),
                         ),
                       ],
@@ -388,18 +554,24 @@ class _GameScreenState extends State<GameScreen> {
                           onTap: c.skipIntro,
                         ),
                       ),
-                      Positioned.fill(
-                        child: _DealFlights(
-                          controller: c,
-                          stackKey: _stackKey,
-                          deckKey: _deckKey,
-                          handKey: _handKey,
-                          seatKeys: _seatKeys,
-                        ),
-                      ),
                       if (c.intro == IntroStep.order)
                         Positioned.fill(child: _TurnOrderPanel(controller: c)),
                     ],
+                    Positioned.fill(
+                      child: IgnorePointer(
+                        child: Stack(
+                          clipBehavior: Clip.none,
+                          children: [
+                            for (final f in _flights)
+                              _FlightView(
+                                key: ValueKey(f.id),
+                                flight: f,
+                                onDone: () => _land(f),
+                              ),
+                          ],
+                        ),
+                      ),
+                    ),
                     if (c.showResults)
                       Positioned.fill(
                         child: _Results(
@@ -787,11 +959,17 @@ class _Table extends StatelessWidget {
     required this.controller,
     required this.onDraw,
     required this.deckKey,
+    required this.pileKey,
+    required this.inFlight,
   });
 
   final GameController controller;
   final VoidCallback onDraw;
   final GlobalKey deckKey;
+  final GlobalKey pileKey;
+
+  /// Played cards still flying towards the pile.
+  final Set<int> inFlight;
 
   @override
   Widget build(BuildContext context) {
@@ -827,10 +1005,20 @@ class _Table extends StatelessWidget {
                   _EmptySlot(width: cardW)
                 else if (intro == IntroStep.flip)
                   _FlipIn(
-                    child: _DiscardPile(game: g, width: cardW),
+                    child: _DiscardPile(
+                      game: g,
+                      width: cardW,
+                      pileKey: pileKey,
+                      hidden: inFlight,
+                    ),
                   )
                 else
-                  _DiscardPile(game: g, width: cardW),
+                  _DiscardPile(
+                    game: g,
+                    width: cardW,
+                    pileKey: pileKey,
+                    hidden: inFlight,
+                  ),
               ],
             ),
             if (cardsOut)
@@ -932,72 +1120,48 @@ class _DrawPile extends StatelessWidget {
   }
 }
 
+/// Resting angle of a card on the discard pile (stable per card).
+double _cardTilt(GameCard c) => ((c.id * 7919) % 17 - 8) * 0.018;
+
 class _DiscardPile extends StatelessWidget {
-  const _DiscardPile({required this.game, required this.width});
+  const _DiscardPile({
+    required this.game,
+    required this.width,
+    required this.pileKey,
+    required this.hidden,
+  });
 
   final Game game;
   final double width;
+  final GlobalKey pileKey;
 
-  double _tilt(GameCard c) => ((c.id * 7919) % 17 - 8) * 0.018;
+  /// Cards still flying in; shown once they land.
+  final Set<int> hidden;
 
   @override
   Widget build(BuildContext context) {
-    final pile = game.discard;
-    final under = pile.length > 1
-        ? pile.sublist(max(0, pile.length - 3), pile.length - 1)
-        : <GameCard>[];
-    final top = pile.last;
-    final lastPlay = game.events.lastWhere(
-      (e) => e.card?.id == top.id,
-      orElse: () => GameEvent(0, EventType.play, ''),
-    );
-    final fromBelow = lastPlay.seat == GameController.human;
+    final pile = game.discard.where((c) => !hidden.contains(c.id)).toList();
+    final shown = pile.sublist(max(0, pile.length - 3));
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox(
+          key: pileKey,
           width: width * 1.25,
           height: width * cardAspect + 6,
           child: Stack(
             alignment: Alignment.center,
             children: [
-              for (final c in under)
+              for (final c in shown)
                 Transform.rotate(
-                  angle: _tilt(c),
+                  key: ValueKey('${c.id}-${game.side.name}'),
+                  angle: _cardTilt(c),
                   child: PlayingCard(
                     width: width,
                     face: game.face(c),
                     wildColors: game.sideColors,
                   ),
                 ),
-              AnimatedSwitcher(
-                duration: const Duration(milliseconds: 420),
-                switchInCurve: Curves.easeOutBack,
-                transitionBuilder: (child, anim) {
-                  final slide = Tween(
-                    begin: Offset(0, fromBelow ? 1.6 : -1.4),
-                    end: Offset.zero,
-                  ).animate(anim);
-                  return SlideTransition(
-                    position: slide,
-                    child: ScaleTransition(
-                      scale: Tween(begin: 0.8, end: 1.0).animate(anim),
-                      child: child,
-                    ),
-                  );
-                },
-                layoutBuilder: (current, previous) =>
-                    Stack(alignment: Alignment.center, children: [?current]),
-                child: Transform.rotate(
-                  key: ValueKey('${top.id}-${game.side.name}'),
-                  angle: _tilt(top),
-                  child: PlayingCard(
-                    width: width,
-                    face: game.topFace,
-                    wildColors: game.sideColors,
-                  ),
-                ),
-              ),
             ],
           ),
         ),
@@ -1520,7 +1684,11 @@ class _Hand extends StatelessWidget {
     required this.controller,
     required this.onTap,
     required this.combo,
+    required this.cardKey,
   });
+
+  /// Key per card so a played card's position is known when it flies off.
+  final GlobalKey Function(int id) cardKey;
 
   /// Cards picked for a Doubles combo, in play order.
   final List<GameCard> combo;
@@ -1676,6 +1844,7 @@ class _Hand extends StatelessWidget {
               clipBehavior: Clip.none,
               children: [
                 PlayingCard(
+                  key: cardKey(card.id),
                   width: width,
                   face: g.face(card),
                   dimmed: look.dim,
@@ -2064,107 +2233,88 @@ class _ShuffleDeckState extends State<_ShuffleDeck>
   }
 }
 
+/// One card moving across the table.
 class _Flight {
-  _Flight(this.id, this.from, this.to, this.toHand);
-
-  final int id;
-  final Offset from;
-  final Offset to;
-  final bool toHand;
-}
-
-/// Card backs flying from the deck to each seat while dealing.
-class _DealFlights extends StatefulWidget {
-  const _DealFlights({
-    required this.controller,
-    required this.stackKey,
-    required this.deckKey,
-    required this.handKey,
-    required this.seatKeys,
+  _Flight({
+    required this.id,
+    required this.from,
+    required this.to,
+    required this.delay,
+    required this.duration,
+    required this.arc,
+    required this.startAngle,
+    required this.endAngle,
+    this.face,
+    this.wildColors = CardColor.light,
+    this.reveal = false,
+    this.landing,
   });
 
-  final GameController controller;
-  final GlobalKey stackKey;
-  final GlobalKey deckKey;
-  final GlobalKey handKey;
-  final Map<int, GlobalKey> seatKeys;
+  final int id;
+  final Rect from;
+  final Rect to;
+  final int delay;
+  final int duration;
 
-  @override
-  State<_DealFlights> createState() => _DealFlightsState();
+  /// How high the card lifts mid-flight, in logical pixels.
+  final double arc;
+  final double startAngle;
+  final double endAngle;
+
+  /// Face shown (null: card back).
+  final CardFace? face;
+  final List<CardColor> wildColors;
+
+  /// Starts face down and turns face up halfway (cards played by bots).
+  final bool reveal;
+
+  /// Discard card revealed on the pile when this flight lands.
+  final int? landing;
 }
 
-class _DealFlightsState extends State<_DealFlights> {
-  final _flights = <_Flight>[];
-  late int _seen = widget.controller.dealt;
+class _FlightView extends StatelessWidget {
+  const _FlightView({super.key, required this.flight, required this.onDone});
 
-  Offset? _center(GlobalKey? key, {double dy = 0}) {
-    final box = key?.currentContext?.findRenderObject() as RenderBox?;
-    final root =
-        widget.stackKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null || root == null || !box.attached || !root.attached) {
-      return null;
-    }
-    return box.localToGlobal(box.size.center(Offset(0, dy)), ancestor: root);
-  }
-
-  @override
-  void didUpdateWidget(_DealFlights old) {
-    super.didUpdateWidget(old);
-    final c = widget.controller;
-    if (c.intro != IntroStep.deal) {
-      _seen = c.dealt;
-      return;
-    }
-    final from = _center(widget.deckKey);
-    for (; _seen < c.dealt; _seen++) {
-      final seat = c.dealSeatAt(_seen);
-      final toHand = seat == GameController.human;
-      final to = toHand
-          ? _center(widget.handKey, dy: -10)
-          : _center(widget.seatKeys[seat]);
-      if (from != null && to != null) {
-        _flights.add(_Flight(_seen, from, to, toHand));
-      }
-    }
-  }
+  final _Flight flight;
+  final VoidCallback onDone;
 
   @override
   Widget build(BuildContext context) {
-    return IgnorePointer(
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          for (final f in _flights)
-            TweenAnimationBuilder<double>(
-              key: ValueKey(f.id),
-              tween: Tween(begin: 0, end: 1),
-              duration: const Duration(milliseconds: 380),
-              curve: Curves.easeOutCubic,
-              onEnd: () => setState(() => _flights.remove(f)),
-              builder: (context, v, _) {
-                const w = 46.0;
-                final pos =
-                    Offset.lerp(f.from, f.to, v)! +
-                    Offset(0, -46 * sin(v * pi));
-                final scale = 1 - v * (f.toHand ? 0.1 : 0.55);
-                return Positioned(
-                  left: pos.dx - w / 2,
-                  top: pos.dy - w * cardAspect / 2,
-                  child: Transform.rotate(
-                    angle: (1 - v) * pi * 0.9,
-                    child: Transform.scale(
-                      scale: scale,
-                      child: Opacity(
-                        opacity: v > 0.92 ? (1 - v) / 0.08 : 1,
-                        child: const PlayingCard(width: w),
-                      ),
-                    ),
-                  ),
-                );
-              },
+    final f = flight;
+    final total = f.delay + f.duration;
+    final start = f.delay / total;
+    return TweenAnimationBuilder<double>(
+      tween: Tween(begin: 0, end: 1),
+      duration: Duration(milliseconds: total),
+      onEnd: onDone,
+      builder: (context, raw, _) {
+        if (raw < start) return const SizedBox.shrink();
+        final t = Curves.easeOutCubic.transform(
+          ((raw - start) / (1 - start)).clamp(0.0, 1.0),
+        );
+        final rect = Rect.lerp(f.from, f.to, t)!;
+        final lift = f.arc * sin(t * pi);
+        final angle = f.startAngle + (f.endAngle - f.startAngle) * t;
+        // Turning over: squash to the edge, then open on the face side.
+        final showFace = f.face != null && (!f.reveal || t >= 0.5);
+        final squash = f.reveal ? max(0.06, (cos(t * pi)).abs()) : 1.0;
+        return Positioned(
+          left: rect.left,
+          top: rect.top - lift,
+          child: Transform.rotate(
+            angle: angle,
+            child: Transform(
+              alignment: Alignment.center,
+              transform: Matrix4.diagonal3Values(squash, 1, 1),
+              child: PlayingCard(
+                width: rect.width,
+                face: showFace ? f.face : null,
+                wildColors: f.wildColors,
+              ),
             ),
-        ],
-      ),
+          ),
+        );
+      },
     );
   }
 }
