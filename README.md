@@ -20,6 +20,8 @@ Original name and artwork; classic "match the color or symbol" mechanics.
 | Elimination | Each round the biggest hand is knocked out. |
 | Speed | 8-second turn clock; time out = draw 2. |
 | Challenge +4 | Bluff a Wild +4 or challenge it (4 for the bluffer, 6 for a wrong challenge). |
+| Exact Score (party) | Draw cards to fill your track to a target of 20-50 exactly; Wild, Skip, Reverse and +2 have special uses; three discards in a row cost a turn. |
+| Hold Card (party) | Everyone secretly plays a number card; on a match, race to press HOLD — the slowest takes the box. |
 | Custom | Any deck, format and combination of the rules above. |
 
 ## Web app (PWA)
@@ -64,6 +66,7 @@ lib/game/   Pure Dart engine (no Flutter imports)
   game.dart    Game state machine, move validation and effects
   bot.dart     Heuristic bots (easy / normal / hard)
   modes.dart   Mode presets and guide content
+  exact_score.dart, hold_card.dart  Party game engines and their bots
 lib/ui/     Flutter UI
   game_controller.dart  Bot scheduling, Jump-In races, Speed clock
   game_screen.dart      Table, hand, banners, results

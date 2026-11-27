@@ -11,6 +11,9 @@ class GuideSection {
   final List<CardFace> cards;
 }
 
+/// Which game a mode plays: the shedding game or one of the party games.
+enum GameKind { shedding, exactScore, holdCard }
+
 class GameMode {
   const GameMode({
     required this.id,
@@ -23,6 +26,7 @@ class GameMode {
     this.maxPlayers = 6,
     this.defaultPlayers = 4,
     this.tag,
+    this.kind = GameKind.shedding,
   });
 
   final String id;
@@ -37,6 +41,7 @@ class GameMode {
 
   /// Small label such as "MVP" or "Hard".
   final String? tag;
+  final GameKind kind;
 
   bool get isCustom => id == 'custom';
 }
@@ -497,6 +502,88 @@ const gameModes = <GameMode>[
       GuideSection('Tips', [
         'A player with many cards is more likely to hold the old color.',
         'If you are the one bluffing, do it when the payoff is big.',
+      ]),
+    ],
+  ),
+  GameMode(
+    id: 'exact_score',
+    name: 'Exact Score',
+    tagline: 'Fill your track to the exact number. Not one more.',
+    accent: _blue,
+    tag: 'Party',
+    kind: GameKind.exactScore,
+    rules: RuleSet(),
+    guide: [
+      GuideSection('Goal', [
+        'Everyone races to the same target, from 20 to 50 points.',
+        'Fill your track exactly: if you are on 19 of 20, only a 1 will do.',
+      ]),
+      GuideSection(
+        'Your turn',
+        [
+          'Tap the deck to draw one card, then Use it or Discard it.',
+          'A number adds its value to your track, but never past the target.',
+          'Three discards in a row and you lose your next turn, so don\'t wait forever for the perfect card.',
+        ],
+        cards: [
+          CardFace(_green, CardKind.number, value: 7),
+          CardFace(_yellow, CardKind.number, value: 3),
+        ],
+      ),
+      GuideSection(
+        'Action cards',
+        [
+          'Wild — add any value from 1 to 9 that still fits.',
+          'Skip — the next player loses their turn.',
+          'Reverse — play changes direction (with two players it works like Skip).',
+          '+2 — take 2 points from an opponent of your choice.',
+        ],
+        cards: [
+          CardFace(_wild, CardKind.wild),
+          CardFace(_red, CardKind.skip),
+          CardFace(_blue, CardKind.reverse),
+          CardFace(_yellow, CardKind.draw, draw: 2),
+        ],
+      ),
+      GuideSection('Tips', [
+        'Close to the target, a Wild is gold: keep the exact gap in mind.',
+        'Use +2 on whoever is closest to finishing.',
+      ]),
+    ],
+  ),
+  GameMode(
+    id: 'hold_card',
+    name: 'Hold Card',
+    tagline: 'Same number? Slap HOLD. Slowest takes the box.',
+    accent: _red,
+    tag: 'Party',
+    kind: GameKind.holdCard,
+    rules: RuleSet(),
+    guide: [
+      GuideSection('Goal', [
+        'Everyone starts with 10 number cards. Be the first with an empty hand.',
+      ]),
+      GuideSection(
+        'Each round',
+        [
+          'Everyone secretly picks one card. All cards are turned over at once and go into the box.',
+          'If two or more show the same number, everyone races to press HOLD CARD.',
+          'The slowest player — or anyone who doesn\'t press at all — takes every card in the box.',
+          'No match? The cards stay in the box and it keeps growing.',
+        ],
+        cards: [
+          CardFace(_red, CardKind.number, value: 4),
+          CardFace(_blue, CardKind.number, value: 4),
+          CardFace(_green, CardKind.number, value: 8),
+        ],
+      ),
+      GuideSection('Careful', [
+        'Pressing HOLD when nothing matches makes you take the box yourself.',
+        'If several players empty their hand in the same round, they share the win.',
+      ]),
+      GuideSection('Tips', [
+        'Keep your thumb near HOLD — hard bots react in under half a second.',
+        'A big box is dangerous: stay sharp when it grows.',
       ]),
     ],
   ),

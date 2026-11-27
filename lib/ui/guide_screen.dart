@@ -19,6 +19,8 @@ IconData modeIcon(String id) => switch (id) {
   'elimination' => Icons.person_remove_rounded,
   'speed' => Icons.timer_rounded,
   'challenge' => Icons.gavel_rounded,
+  'exact_score' => Icons.scoreboard_rounded,
+  'hold_card' => Icons.back_hand_rounded,
   _ => Icons.tune_rounded,
 };
 

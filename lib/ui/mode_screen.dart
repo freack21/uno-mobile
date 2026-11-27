@@ -3,7 +3,9 @@ import 'package:material_ui/material_ui.dart';
 import '../game/cards.dart';
 import '../game/modes.dart';
 import '../game/rules.dart';
+import 'exact_score_screen.dart';
 import 'game_screen.dart';
+import 'hold_card_screen.dart';
 import 'guide_screen.dart';
 import 'theme.dart';
 
@@ -21,6 +23,9 @@ class _ModeScreenState extends State<ModeScreen> {
   late GameMode m = widget.mode;
   late int players = m.defaultPlayers;
   Difficulty difficulty = Difficulty.normal;
+
+  /// Exact Score target; 0 means random (20-50).
+  int target = 0;
   late RuleSet rules = m.rules;
 
   int get minPlayers => rules.teams
@@ -36,15 +41,29 @@ class _ModeScreenState extends State<ModeScreen> {
   });
 
   void _start() {
+    final count = players.clamp(minPlayers, maxPlayers);
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => GameScreen(
-          mode: m,
-          rules: rules,
-          players: players.clamp(minPlayers, maxPlayers),
-          difficulty: difficulty,
-        ),
+        builder: (_) => switch (m.kind) {
+          GameKind.exactScore => ExactScoreScreen(
+            mode: m,
+            players: count,
+            difficulty: difficulty,
+            target: target == 0 ? null : target,
+          ),
+          GameKind.holdCard => HoldCardScreen(
+            mode: m,
+            players: count,
+            difficulty: difficulty,
+          ),
+          GameKind.shedding => GameScreen(
+            mode: m,
+            rules: rules,
+            players: count,
+            difficulty: difficulty,
+          ),
+        },
       ),
     );
   }
@@ -110,6 +129,16 @@ class _ModeScreenState extends State<ModeScreen> {
                   onChanged: (d) => setState(() => difficulty = d),
                 ),
               ),
+              if (m.kind == GameKind.exactScore)
+                _Row(
+                  label: 'Target',
+                  child: _Segments<int>(
+                    values: const [0, 20, 30, 40, 50],
+                    selected: target,
+                    label: (v) => v == 0 ? 'Random' : '$v',
+                    onChanged: (v) => setState(() => target = v),
+                  ),
+                ),
               if (rules.format == MatchFormat.points)
                 _Row(
                   label: 'Target',

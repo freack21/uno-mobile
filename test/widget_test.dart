@@ -4,7 +4,10 @@ import 'package:uno_mobile/game/modes.dart';
 import 'package:uno_mobile/game/rules.dart';
 import 'package:uno_mobile/main.dart';
 import 'package:uno_mobile/ui/game_controller.dart';
+import 'package:uno_mobile/ui/exact_score_screen.dart';
 import 'package:uno_mobile/ui/game_screen.dart';
+import 'package:uno_mobile/ui/hold_card_screen.dart';
+import 'package:uno_mobile/ui/playing_card.dart';
 import 'package:uno_mobile/ui/guide_screen.dart';
 import 'package:uno_mobile/ui/mode_screen.dart';
 import 'package:uno_mobile/ui/theme.dart';
@@ -60,6 +63,11 @@ void main() {
       await tester.pumpWidget(wrap(GuideScreen(mode: mode)));
       expect(find.text(mode.guide.first.title), findsOneWidget);
 
+      if (mode.kind != GameKind.shedding) {
+        // Party games are covered by their own tests below.
+        await tester.pumpWidget(const SizedBox());
+        return;
+      }
       await tester.pumpWidget(
         wrap(
           GameScreen(
@@ -227,6 +235,68 @@ void main() {
     await tester.tap(find.byType(SoundButton));
     await tester.pump();
     expect(soundOn.value, isTrue);
+  });
+
+  GameMode party(GameKind kind) => gameModes.firstWhere((m) => m.kind == kind);
+
+  testWidgets('Exact Score plays through the screen', (tester) async {
+    await phone(tester);
+    await tester.pumpWidget(
+      wrap(
+        ExactScoreScreen(
+          mode: party(GameKind.exactScore),
+          players: 3,
+          difficulty: Difficulty.hard,
+          target: 20,
+        ),
+      ),
+    );
+    expect(find.text('TARGET 20'), findsOneWidget);
+    var drew = 0;
+    for (var i = 0; i < 80; i++) {
+      await tester.pump(const Duration(milliseconds: 600));
+      if (find.text('Draw').evaluate().isNotEmpty) {
+        await tester.tap(find.text('Draw'));
+        drew++;
+        continue;
+      }
+      final use = find.textContaining('Use ');
+      final discard = find.textContaining('Discard');
+      if (use.evaluate().isNotEmpty) {
+        await tester.tap(use.first);
+      } else if (discard.evaluate().isNotEmpty) {
+        await tester.tap(discard.first);
+      }
+    }
+    expect(drew, greaterThan(0));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
+  });
+
+  testWidgets('Hold Card plays through the screen', (tester) async {
+    await phone(tester);
+    await tester.pumpWidget(
+      wrap(
+        HoldCardScreen(
+          mode: party(GameKind.holdCard),
+          players: 4,
+          difficulty: Difficulty.normal,
+        ),
+      ),
+    );
+    expect(find.text('HOLD CARD'), findsOneWidget);
+    expect(find.text('Pick a card to put in the box'), findsOneWidget);
+    for (var i = 0; i < 60; i++) {
+      await tester.pump(const Duration(milliseconds: 500));
+      if (find.text('Pick a card to put in the box').evaluate().isNotEmpty) {
+        // The hand is the last row of cards on screen.
+        await tester.tap(find.byType(PlayingCard).last, warnIfMissed: false);
+      } else if (find.text('Same number! Press HOLD!').evaluate().isNotEmpty) {
+        await tester.tap(find.text('HOLD CARD'));
+      }
+    }
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox());
   });
 
   testWidgets('basics guide renders', (tester) async {
