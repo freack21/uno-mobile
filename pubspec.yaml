@@ -1,7 +1,7 @@
 name: uno_mobile
 description: "Last Card — a fast shedding card game against bots."
 publish_to: 'none'
-version: 0.1.0+1
+version: 0.2.0+2
 
 environment:
   sdk: ^3.14.0
