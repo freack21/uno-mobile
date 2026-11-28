@@ -1,4 +1,5 @@
 import 'cards.dart';
+import 'i18n.dart';
 
 enum MatchFormat {
   /// One round, first player out wins.
@@ -26,7 +27,7 @@ enum Difficulty {
   normal,
   hard;
 
-  String get label => name[0].toUpperCase() + name.substring(1);
+  String get label => t(name[0].toUpperCase() + name.substring(1));
 }
 
 class RuleSet {

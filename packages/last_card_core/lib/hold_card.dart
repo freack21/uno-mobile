@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'cards.dart';
+import 'i18n.dart';
 import 'rules.dart';
 
 /// Hold Card: every player holds face-down cards they cannot see.
@@ -16,7 +17,7 @@ enum HoldGuess {
   number,
   color;
 
-  String get label => this == number ? 'Number' : 'Color';
+  String get label => this == number ? t('Number') : t('Color');
 }
 
 enum HoldPhase { call, race, over }

@@ -3,6 +3,7 @@ import 'dart:math';
 import 'cards.dart';
 import 'exact_score.dart';
 import 'hold_card.dart';
+import 'i18n.dart';
 import 'rules.dart';
 import 'table.dart';
 
@@ -137,14 +138,13 @@ class ExactScoreTable extends TableRuntime {
 
   void _resolve(int seat) {
     final f = game.drawnFace!;
-    final p = game.players[seat];
     if (!game.canUse(seat)) {
       stage = ExactStage.bust;
       say(
-        f.kind == CardKind.number ? 'BUST!' : 'WASTED',
+        Msg('word', s: f.kind == CardKind.number ? 'BUST!' : 'WASTED'),
         subtitle: f.kind == CardKind.number
-            ? '${p.name} needed ${game.remaining(seat)}, drew ${f.value}'
-            : 'Nobody has points to take yet',
+            ? Msg('bust', p: [seat], n: [game.remaining(seat), f.value])
+            : const Msg('nothingToTake'),
         sound: 'nope',
         alert: true,
       );
@@ -213,7 +213,11 @@ class ExactScoreTable extends TableRuntime {
         sound('skip');
       case CardKind.reverse:
         if (game.players.length > 2) {
-          say('REVERSE', subtitle: 'Play changes direction', sound: 'reverse');
+          say(
+            const Msg('word', s: 'REVERSE'),
+            subtitle: const Msg('direction'),
+            sound: 'reverse',
+          );
         } else {
           sound('reverse');
         }
@@ -221,8 +225,8 @@ class ExactScoreTable extends TableRuntime {
         final v = game.players[victim!];
         fillFrom[victim] = v.score;
         say(
-          '−${victimBefore - v.score}',
-          subtitle: '${p.name} hit ${v.name}',
+          Msg('minus', n: [victimBefore - v.score]),
+          subtitle: Msg('hit', p: [seat, victim]),
           sound: 'penalty',
           alert: true,
         );
@@ -231,9 +235,8 @@ class ExactScoreTable extends TableRuntime {
         final gained = p.score - before;
         fillFrom[seat] = before;
         say(
-          '+$gained',
-          subtitle:
-              '${p.name} ${p.isHuman ? 'are' : 'is'} on ${p.score}/${game.target}',
+          Msg('plus', n: [gained]),
+          subtitle: Msg('onScore', p: [seat], n: [p.score, game.target]),
           sound: f.isWild ? 'wild' : null,
           ticks: gained,
         );
@@ -250,9 +253,10 @@ class ExactScoreTable extends TableRuntime {
     }
     final skipped = game.lastSkipped;
     if (skipped.isNotEmpty) {
-      final names = skipped.map((s) => game.players[s].name).join(' & ');
-      final one = skipped.length == 1 && !game.players[skipped.first].isHuman;
-      say('SKIP', subtitle: '$names ${one ? 'loses' : 'lose'} a turn');
+      say(
+        const Msg('word', s: 'SKIP'),
+        subtitle: Msg('loseTurn', p: skipped),
+      );
     }
     changed();
     after(skipped.isEmpty ? 500 : 1200, _nextTurn);
@@ -362,12 +366,10 @@ class HoldCardTable extends TableRuntime {
     final play = game.place(seat, call, index);
     playId++;
     sound('flip');
-    final p = game.players[seat];
     if (play.drew > 0) {
       say(
-        '+${play.drew}',
-        subtitle:
-            '${p.name} ${p.isHuman ? 'draw' : 'draws'} ${play.drew} from the stock',
+        Msg('plus', n: [play.drew]),
+        subtitle: Msg('stockDraw', p: [seat], n: [play.drew]),
         sound: 'penalty',
         alert: true,
       );
@@ -385,9 +387,17 @@ class HoldCardTable extends TableRuntime {
     }
     final kind = play.card.light.kind;
     if (play.drew == 0 && kind == CardKind.skip) {
-      say('SKIP', subtitle: 'The next player loses a turn', sound: 'skip');
+      say(
+        const Msg('word', s: 'SKIP'),
+        subtitle: const Msg('nextLoses'),
+        sound: 'skip',
+      );
     } else if (play.drew == 0 && kind == CardKind.reverse) {
-      say('REVERSE', subtitle: 'Play changes direction', sound: 'reverse');
+      say(
+        const Msg('word', s: 'REVERSE'),
+        subtitle: const Msg('direction'),
+        sound: 'reverse',
+      );
     }
     // A jumpy bot may slap HOLD on a miss before the next turn starts.
     for (final q in game.players) {
@@ -420,14 +430,14 @@ class HoldCardTable extends TableRuntime {
 
   void _resolved(HoldResult r) {
     cancelTimers();
-    final taker = game.players[r.taker!];
+    final taker = r.taker!;
     say(
-      r.falsePress ? 'TOO EARLY!' : '+${r.taken}',
+      r.falsePress
+          ? const Msg('word', s: 'TOO EARLY!')
+          : Msg('plus', n: [r.taken]),
       subtitle: r.falsePress
-          ? '${taker.name} pressed without a match: ${r.taken} cards'
-          : taker.isHuman
-          ? 'Too slow! You take the box'
-          : '${taker.name} was slowest and takes the box',
+          ? Msg('tooEarly', p: [taker], n: [r.taken])
+          : Msg('slowest', p: [taker]),
       sound: 'penalty',
       alert: true,
       forSeat: null,

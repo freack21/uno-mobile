@@ -1,11 +1,13 @@
 import 'dart:async';
 
+import 'i18n.dart';
+
 /// A short announcement for the players: banner text plus an optional sound.
 class TableNote {
   const TableNote(
     this.id,
     this.title, {
-    this.subtitle,
+    this.subtitle = Msg.none,
     this.sound,
     this.alert = false,
     this.ticks = 0,
@@ -13,8 +15,10 @@ class TableNote {
   });
 
   final int id;
-  final String title;
-  final String? subtitle;
+
+  /// Rendered by each reader in their own language (see i18n.dart).
+  final Msg title;
+  final Msg subtitle;
 
   /// Name of a sound effect (matches the app's Sfx names).
   final String? sound;
@@ -30,8 +34,8 @@ class TableNote {
 
   Map<String, Object?> toJson(int Function(int) seat) => {
     'id': id,
-    'title': title,
-    'subtitle': subtitle,
+    'title': title.toJson(seat),
+    'subtitle': subtitle.toJson(seat),
     'sound': sound,
     'alert': alert,
     'ticks': ticks,
@@ -40,8 +44,8 @@ class TableNote {
 
   factory TableNote.fromJson(Map<String, dynamic> j) => TableNote(
     j['id'] as int,
-    j['title'] as String,
-    subtitle: j['subtitle'] as String?,
+    Msg.fromJson(j['title'] as Map<String, dynamic>),
+    subtitle: Msg.fromJson(j['subtitle'] as Map<String, dynamic>),
     sound: j['sound'] as String?,
     alert: j['alert'] as bool,
     ticks: j['ticks'] as int,
@@ -109,8 +113,8 @@ abstract class TableRuntime {
   }
 
   void say(
-    String title, {
-    String? subtitle,
+    Msg title, {
+    Msg subtitle = Msg.none,
     String? sound,
     bool alert = false,
     int ticks = 0,
@@ -132,7 +136,7 @@ abstract class TableRuntime {
 
   /// A sound with no banner.
   void sound(String name, {int? forSeat}) =>
-      say('', sound: name, forSeat: forSeat);
+      say(Msg.none, sound: name, forSeat: forSeat);
 
   void changed() {
     if (!_disposed) onChange?.call();

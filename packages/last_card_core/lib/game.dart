@@ -1,6 +1,7 @@
 import 'dart:math';
 
 import 'cards.dart';
+import 'i18n.dart';
 import 'rules.dart';
 
 class Player {
@@ -64,11 +65,23 @@ enum LastPress {
 }
 
 class GameEvent {
-  GameEvent(this.id, this.type, this.text, {this.seat, this.card, this.count});
+  GameEvent(
+    this.id,
+    this.type,
+    this.text, {
+    this.seat,
+    this.card,
+    this.count,
+    this.msg = Msg.none,
+  });
 
   final int id;
   final EventType type;
+
+  /// [msg] as written when it happened (for logs and tests); screens render
+  /// [msg] in the reader's language.
   final String text;
+  final Msg msg;
   final int? seat;
   final GameCard? card;
   final int? count;
@@ -343,9 +356,11 @@ class Game {
     activeColor = face(last).isWild ? color! : face(last).color;
     _log(
       jump ? EventType.jumpIn : EventType.play,
-      jump
-          ? '${p.name} jumped in with ${f.label}'
-          : '${p.name} played ${played.map((c) => face(c).label).join(' + ')}',
+      Msg(
+        jump ? 'jumpIn' : 'play',
+        p: [seat],
+        f: jump ? [f] : [for (final c in played) face(c)],
+      ),
       seat: seat,
       card: last,
       count: n,
@@ -361,7 +376,7 @@ class Game {
         discard.insertAll(discard.length - 1, dropped);
         _log(
           EventType.discardAll,
-          '${p.name} discarded ${dropped.length} more card${dropped.length == 1 ? '' : 's'}',
+          Msg('discardAll', p: [seat], n: [dropped.length]),
           seat: seat,
           count: dropped.length,
         );
@@ -398,9 +413,7 @@ class Game {
           if (n.isOdd) direction = -direction;
           _log(
             EventType.reverse,
-            n.isOdd
-                ? 'Direction reversed'
-                : 'Reversed $n times: same direction',
+            n.isOdd ? const Msg('reversed') : Msg('reversedTimes', n: [n]),
             seat: seat,
           );
           _advance(1);
@@ -420,23 +433,19 @@ class Game {
       case CardKind.wildReverseDraw:
         if (activePlayers.length > 2 && n.isOdd) {
           direction = -direction;
-          _log(EventType.reverse, 'Direction reversed', seat: seat);
+          _log(EventType.reverse, const Msg('reversed'), seat: seat);
         }
         pendingDraw += f.draw * n;
         _advance(1);
       case CardKind.skipAll:
-        _log(EventType.skip, '${p.name} skipped everyone', seat: seat);
+        _log(EventType.skip, Msg('skipAll', p: [seat]), seat: seat);
         _advance(0);
       case CardKind.discardAll || CardKind.wild:
         _advance(1);
       case CardKind.flip:
         side = side.other;
         activeColor = topFace.isWild ? color! : topFace.color;
-        _log(
-          EventType.flip,
-          'Everything flipped to the ${side.name} side',
-          seat: seat,
-        );
+        _log(EventType.flip, Msg('flipped', s: side.name), seat: seat);
         _advance(1);
       case CardKind.wildDrawColor:
         final victim = nextSeat(seat);
@@ -446,7 +455,7 @@ class Game {
         }
         _log(
           EventType.penalty,
-          '${players[victim].name} dug $dug card${dug == 1 ? '' : 's'} for ${activeColor.label}',
+          Msg('dug', p: [victim], n: [dug, activeColor.index]),
           seat: victim,
           count: dug,
         );
@@ -487,7 +496,7 @@ class Game {
     if (drawn.isNotEmpty) {
       _log(
         EventType.draw,
-        '${p.name} drew ${drawn.length} card${drawn.length == 1 ? '' : 's'}',
+        Msg('drew', p: [seat], n: [drawn.length]),
         seat: seat,
         count: drawn.length,
       );
@@ -528,7 +537,7 @@ class Game {
       _drawCards(ch.offender, 4);
       _log(
         EventType.challenge,
-        'Challenge won! ${players[ch.offender].name} bluffed and ${players[ch.offender].verb('draws', 'draw')} 4',
+        Msg('challengeWon', p: [ch.offender]),
         seat: ch.offender,
         count: 4,
       );
@@ -538,7 +547,7 @@ class Game {
       _drawCards(seat, 6);
       _log(
         EventType.challenge,
-        'Challenge failed! ${players[seat].name} ${players[seat].verb('draws', 'draw')} 6',
+        Msg('challengeFailed', p: [seat]),
         seat: seat,
         count: 6,
       );
@@ -550,7 +559,7 @@ class Game {
     if (!canCallLast(seat)) return;
     players[seat].calledLast = true;
     if (vulnerable == seat) vulnerable = null;
-    _log(EventType.lastCall, '${players[seat].name}: "Last card!"', seat: seat);
+    _log(EventType.lastCall, Msg('lastCall', p: [seat]), seat: seat);
   }
 
   /// The LAST CARD button: calls for [seat]'s own last card, or else catches
@@ -569,7 +578,7 @@ class Game {
     _drawCards(seat, 2);
     _log(
       EventType.falseCall,
-      '${p.name} called "Last card!" for nothing: +2',
+      Msg('falseCall', p: [seat]),
       seat: seat,
       count: 2,
     );
@@ -584,7 +593,7 @@ class Game {
     _drawCards(target, 2);
     _log(
       EventType.caught,
-      '${players[catcher].name} caught ${players[target].name}: +2',
+      Msg('caught', p: [catcher, target]),
       seat: target,
       count: 2,
     );
@@ -595,11 +604,7 @@ class Game {
   /// Speed mode: the turn clock ran out.
   void timeout(int seat) {
     _requireTurn(seat);
-    _log(
-      EventType.timeout,
-      "${players[seat].name} ran out of time",
-      seat: seat,
-    );
+    _log(EventType.timeout, Msg('timeout', p: [seat]), seat: seat);
     if (phase == Phase.afterDraw) {
       pass(seat);
     } else if (pendingDraw > 0) {
@@ -680,7 +685,7 @@ class Game {
     _drawCards(seat, n);
     _log(
       EventType.penalty,
-      '${players[seat].name} ${players[seat].verb('takes', 'take')} +$n',
+      Msg('takes', p: [seat], n: [n]),
       seat: seat,
       count: n,
     );
@@ -735,7 +740,7 @@ class Game {
     if (vulnerable == seat) vulnerable = null;
     _log(
       EventType.knockout,
-      '${p.name} hit $limit cards and ${p.verb('is', 'are')} out!',
+      Msg('handLimit', p: [p.seat], n: [limit]),
       seat: seat,
     );
     final remaining = activePlayers;
@@ -756,11 +761,7 @@ class Game {
       ..clear()
       ..addAll(ha);
     _resetCalls();
-    _log(
-      EventType.swap,
-      '${players[a].name} swapped hands with ${players[b].name}',
-      seat: a,
-    );
+    _log(EventType.swap, Msg('swap', p: [a, b]), seat: a);
   }
 
   void _rotateHands(int from) {
@@ -776,7 +777,7 @@ class Game {
         ..addAll(hands[i]);
     }
     _resetCalls();
-    _log(EventType.rotate, 'All hands passed along', seat: from);
+    _log(EventType.rotate, const Msg('rotate'), seat: from);
   }
 
   /// After hands move around, single cards count as announced.
@@ -787,11 +788,8 @@ class Game {
     }
   }
 
-  void _logSkip(int seat) => _log(
-    EventType.skip,
-    '${players[seat].name} ${players[seat].verb('was', 'were')} skipped',
-    seat: seat,
-  );
+  void _logSkip(int seat) =>
+      _log(EventType.skip, Msg('skipped', p: [seat]), seat: seat);
 
   void _endRound(int winner) {
     if (isRoundOver) return;
@@ -821,11 +819,7 @@ class Game {
         if (candidates.isNotEmpty) {
           final k = candidates.first..out = true;
           knocked = k.seat;
-          _log(
-            EventType.knockout,
-            '${k.name} held the most cards and ${k.verb('is', 'are')} out!',
-            seat: k.seat,
-          );
+          _log(EventType.knockout, Msg('mostCards', p: [k.seat]), seat: k.seat);
         }
         w.score++;
         phase = activePlayers.length <= 1 ? Phase.matchOver : Phase.roundOver;
@@ -842,11 +836,7 @@ class Game {
     challenge = null;
     _log(
       EventType.roundEnd,
-      rules.teams
-          ? (isTeammate(winner, 0) || w.isHuman
-                ? 'Your team wins the round!'
-                : 'Team ${w.name} wins the round!')
-          : '${w.name} ${w.verb('wins', 'win')} the round!',
+      Msg(rules.teams ? 'teamRound' : 'round', p: [winner]),
       seat: winner,
     );
   }
@@ -870,15 +860,24 @@ class Game {
     return pool.reduce((a, b) => b.score > a.score ? b : a);
   }
 
-  void _log(
-    EventType type,
-    String text, {
-    int? seat,
-    GameCard? card,
-    int? count,
-  }) {
+  /// How a [Msg] reads at this table (the human player is "you").
+  Seating get seating => Seating(
+    name: (s) => players[s].name,
+    you: (s) => players[s].isHuman,
+    mate: (s) => players.any((p) => p.isHuman && isTeammate(p.seat, s)),
+  );
+
+  void _log(EventType type, Msg msg, {int? seat, GameCard? card, int? count}) {
     events.add(
-      GameEvent(++_eventId, type, text, seat: seat, card: card, count: count),
+      GameEvent(
+        ++_eventId,
+        type,
+        render(msg, seating),
+        seat: seat,
+        card: card,
+        count: count,
+        msg: msg,
+      ),
     );
     if (events.length > 60) events.removeAt(0);
     _changed();

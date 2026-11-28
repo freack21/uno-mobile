@@ -1,5 +1,7 @@
 import 'dart:math';
 
+import 'i18n.dart';
+
 /// Card colors. Light colors are used by the standard decks and the light
 /// side of the Flipside deck; dark colors only exist on the dark side.
 enum CardColor {
@@ -18,7 +20,8 @@ enum CardColor {
   static const light = [red, yellow, green, blue];
   static const dark = [pink, teal, orange, purple];
 
-  String get label => name[0].toUpperCase() + name.substring(1);
+  /// In the current language.
+  String get label => colorLabel(this);
 }
 
 enum CardKind {
@@ -92,15 +95,8 @@ class CardFace {
     CardKind.wildDrawColor => 'Draw Color',
   };
 
-  String get label {
-    final base = switch (kind) {
-      CardKind.wildDraw => 'Wild +$draw',
-      CardKind.wildReverseDraw => 'Wild Reverse +$draw',
-      CardKind.wildDrawColor => 'Wild Draw Color',
-      _ => symbol,
-    };
-    return isWild ? base : '${color.label} $base';
-  }
+  /// "Red 7", "Wild +4" in the current language.
+  String get label => faceLabel(this);
 
   @override
   String toString() => label;
@@ -126,9 +122,9 @@ enum DeckType {
   flipside;
 
   String get label => switch (this) {
-    classic => 'Classic',
-    merciless => 'Merciless',
-    flipside => 'Flipside',
+    classic => t('Classic'),
+    merciless => t('Merciless'),
+    flipside => t('Flipside'),
   };
 }
 

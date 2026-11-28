@@ -9,6 +9,7 @@ import 'cards.dart';
 import 'exact_score.dart';
 import 'game.dart';
 import 'hold_card.dart';
+import 'i18n.dart';
 import 'rules.dart';
 
 // ------------------------------------------------------------------- cards
@@ -154,6 +155,7 @@ Map<String, Object?> gameView(Game g, int viewer) {
           'seat': s.toLocalOrNull(e.seat),
           'card': e.card == null ? null : cardToJson(e.card!),
           'count': e.count,
+          'msg': e.msg.toJson(s.toLocal),
         },
     ],
     'version': g.version,
@@ -218,6 +220,9 @@ Game gameFromView(Map<String, dynamic> j, {List<bool>? humans}) {
         seat: e['seat'] as int?,
         card: card == null ? null : cardFromJson(card),
         count: e['count'] as int?,
+        msg: e['msg'] == null
+            ? Msg.none
+            : Msg.fromJson(e['msg'] as Map<String, dynamic>),
       ),
     );
   }
