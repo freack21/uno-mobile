@@ -26,6 +26,7 @@ class GameScreen extends StatefulWidget {
     this.players = 4,
     this.difficulty = Difficulty.normal,
     this.controller,
+    this.onRematch,
   });
 
   final GameMode mode;
@@ -35,6 +36,9 @@ class GameScreen extends StatefulWidget {
 
   /// An online match controller; null plays offline against bots.
   final GameController? controller;
+
+  /// Online, for the host: start the same mode again.
+  final VoidCallback? onRematch;
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -594,6 +598,7 @@ class _GameScreenState extends State<GameScreen> {
                         child: _Results(
                           controller: c,
                           onMenu: () => Navigator.pop(context),
+                          onRematch: widget.onRematch,
                         ),
                       ),
                   ],
@@ -2012,10 +2017,15 @@ class _ColorPicker extends StatelessWidget {
 // ------------------------------------------------------------------ results
 
 class _Results extends StatefulWidget {
-  const _Results({required this.controller, required this.onMenu});
+  const _Results({
+    required this.controller,
+    required this.onMenu,
+    this.onRematch,
+  });
 
   final GameController controller;
   final VoidCallback onMenu;
+  final VoidCallback? onRematch;
 
   @override
   State<_Results> createState() => _ResultsState();
@@ -2136,11 +2146,20 @@ class _ResultsState extends State<_Results> {
                         textAlign: TextAlign.center,
                         style: font(14, weight: 600, color: Palette.muted),
                       )
-                    else
-                      FilledButton(
+                    else ...[
+                      if (widget.onRematch != null) ...[
+                        FilledButton.icon(
+                          onPressed: widget.onRematch,
+                          icon: const Icon(Icons.replay_rounded),
+                          label: Text(t('Rematch')),
+                        ),
+                        const SizedBox(height: 10),
+                      ],
+                      OutlinedButton(
                         onPressed: widget.onMenu,
                         child: Text(t('Back to lobby')),
                       ),
+                    ],
                   ] else ...[
                     if (!matchOver)
                       FilledButton(

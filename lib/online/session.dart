@@ -8,6 +8,7 @@ import 'package:web_socket_channel/web_socket_channel.dart';
 import 'package:last_card_core/i18n.dart';
 
 import 'browser.dart';
+import 'reactions.dart';
 
 /// The public game server the app connects to (and invite links point to);
 /// override with --dart-define=LC_HOST=... for a test server.
@@ -96,6 +97,9 @@ class OnlineSession extends ChangeNotifier {
 
   Future<String?> create() => _enter({'t': 'create'});
 
+  /// A Quick Match table with whoever else is looking.
+  Future<String?> quick() => _enter({'t': 'quick'});
+
   Future<String?> join(String room, String pass) {
     final saved = _savedToken(room);
     return _enter({
@@ -111,6 +115,26 @@ class OnlineSession extends ChangeNotifier {
   void start() => _send({'t': 'start'});
   void endSession() => _send({'t': 'end'});
   void act(Map<String, Object?> action) => _send({'t': 'act', ...action});
+
+  /// Reactions on screen right now, newest last.
+  final reactions = ValueNotifier<List<Reaction>>(const []);
+  var _reactionId = 0;
+
+  void react(int pick) => _send({'t': 'react', 'r': pick});
+
+  void _showReaction(String from, int pick) {
+    final r = Reaction(++_reactionId, from, pick);
+    reactions.value = [
+      ...reactions.value.skip(reactions.value.length > 3 ? 1 : 0),
+      r,
+    ];
+    Timer(const Duration(milliseconds: 2800), () {
+      reactions.value = [
+        for (final x in reactions.value)
+          if (x.id != r.id) x,
+      ];
+    });
+  }
 
   /// Stops offering the saved room (it no longer exists).
   void forgetSaved() => writeStored(_storeKey, null);
@@ -285,6 +309,12 @@ class OnlineSession extends ChangeNotifier {
         errorId++;
       case 'left':
         room = null;
+      case 'react':
+        final pick = msg['r'];
+        if (pick is int && pick >= 0 && pick < reactionCount) {
+          _showReaction(msg['from'] as String, pick);
+        }
+        return;
     }
     notifyListeners();
   }

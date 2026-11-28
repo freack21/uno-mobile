@@ -331,6 +331,7 @@ class PartyResults extends StatefulWidget {
     required this.won,
     required this.rows,
     required this.onAgain,
+    this.onRematch,
     required this.onMenu,
   });
 
@@ -341,6 +342,9 @@ class PartyResults extends StatefulWidget {
 
   /// Null online: the next match is started from the lobby.
   final VoidCallback? onAgain;
+
+  /// Online, for the host: the same mode again with everyone.
+  final VoidCallback? onRematch;
   final VoidCallback onMenu;
 
   @override
@@ -444,11 +448,22 @@ class _PartyResultsState extends State<PartyResults> {
                       onPressed: widget.onMenu,
                       child: Text(t('Menu')),
                     ),
-                  ] else
-                    FilledButton(
+                  ] else ...[
+                    if (widget.onRematch != null) ...[
+                      FilledButton.icon(
+                        onPressed: widget.onRematch,
+                        icon: const Icon(Icons.replay_rounded),
+                        label: Text(t('Rematch')),
+                      ),
+                      const SizedBox(height: 10),
+                    ],
+                    (widget.onRematch != null
+                        ? OutlinedButton.new
+                        : FilledButton.new)(
                       onPressed: widget.onMenu,
                       child: Text(t('Back to lobby')),
                     ),
+                  ],
                 ],
               ),
             ),

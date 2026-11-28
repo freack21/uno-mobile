@@ -27,6 +27,7 @@ class HoldCardScreen extends StatefulWidget {
     this.difficulty = Difficulty.normal,
     this.guess = HoldGuess.number,
     this.table,
+    this.onRematch,
   });
 
   final GameMode mode;
@@ -36,6 +37,9 @@ class HoldCardScreen extends StatefulWidget {
 
   /// An online table mirrored from the server; null plays offline vs bots.
   final HoldCardTable? table;
+
+  /// Online, for the host: start the same mode again.
+  final VoidCallback? onRematch;
 
   @override
   State<HoldCardScreen> createState() => _HoldCardScreenState();
@@ -591,6 +595,7 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
               table.dispose();
               setState(_newGame);
             },
+      onRematch: widget.onRematch,
       onMenu: () => Navigator.pop(context),
     );
   }

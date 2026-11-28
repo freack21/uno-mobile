@@ -120,6 +120,8 @@ const indonesian = <String, String>{
       'Aturan Classic, dimainkan dalam beberapa ronde.',
   'Classic rules. The moment either partner empties their hand, the team wins.':
       'Aturan Classic. Begitu salah satu rekan menghabiskan kartunya, timnya menang.',
+  'Classic starts in {s}s. Bots take the empty seats.':
+      'Classic mulai dalam {s} detik. Bot mengisi kursi kosong.',
   'Close to the target, a Wild is gold: keep the exact gap in mind.':
       'Saat dekat target, Wild sangat berharga: ingat selisih pastinya.',
   'Color': 'Warna',
@@ -180,6 +182,8 @@ const indonesian = <String, String>{
   'Fill your track to the exact number. Not one more.':
       'Isi lintasanmu tepat sampai angkanya. Lebih satu pun tidak boleh.',
   'Final score': 'Skor akhir',
+  'Find a match': 'Cari lawan',
+  'Finding players… {n}/{max}': 'Mencari pemain… {n}/{max}',
   'First card: {card}': 'Kartu pertama: {card}',
   'First to empty their hand': 'Pertama yang menghabiskan kartunya',
   'First to exactly {n}': 'Pertama tepat {n}',
@@ -191,6 +195,7 @@ const indonesian = <String, String>{
   'Format': 'Format',
   'Four players: you sit opposite your partner. Your rivals sit left and right.':
       'Empat pemain: kamu duduk berhadapan dengan rekanmu. Rivalmu duduk di kiri dan kanan.',
+  'GG!': 'GG!',
   'Game modes': 'Mode permainan',
   'Get ready…': 'Bersiap…',
   'Goal': 'Tujuan',
@@ -215,6 +220,7 @@ const indonesian = <String, String>{
   'How it works': 'Cara kerjanya',
   'How to play': 'Cara bermain',
   'How to play {mode}': 'Cara bermain {mode}',
+  'Hurry up!': 'Cepetan!',
   'If it matches your call, everyone races to press HOLD CARD. The slowest — or anyone who doesn\'t press — takes every card in the box.':
       'Jika cocok dengan sebutanmu, semua berlomba menekan HOLD CARD. Yang paling lambat — atau siapa pun yang tidak menekan — mengambil semua kartu di kotak.',
   'If several players never press, one of them takes the box.':
@@ -304,6 +310,7 @@ const indonesian = <String, String>{
   'Next match (host decides)': 'Pertandingan berikutnya (host memilih)',
   'Next round': 'Ronde berikutnya',
   'Next round starts in a moment…': 'Ronde berikutnya segera dimulai…',
+  'Nice one!': 'Mantap!',
   'Nickname cannot be empty': 'Nama panggilan tidak boleh kosong',
   'Nickname is at most 16 characters': 'Nama panggilan maksimal 16 karakter',
   'No account needed. Create a room, share the link, and play with friends.':
@@ -323,6 +330,7 @@ const indonesian = <String, String>{
   'Nobody is on one card · you draw 2':
       'Tak ada yang tinggal satu kartu · kamu ambil 2',
   'Normal': 'Normal',
+  'Not again…': 'Yah, lagi…',
   'Number': 'Angka',
   'Number cards: face value (a 9 is worth 9).':
       'Kartu angka: sesuai nilainya (9 bernilai 9).',
@@ -350,6 +358,7 @@ const indonesian = <String, String>{
   'Only the host can start': 'Hanya host yang bisa memulai',
   'Only {card} cards join this combo':
       'Hanya kartu {card} yang bisa ikut kombo ini',
+  'Oops!': 'Waduh!',
   'Open': 'Buka',
   'Opponents': 'Lawan',
   'Orange': 'Oranye',
@@ -374,6 +383,8 @@ const indonesian = <String, String>{
   'Pink': 'Pink',
   'Pink, teal, orange and purple — and much meaner.':
       'Pink, toska, oranye, dan ungu — dan jauh lebih kejam.',
+  'Play Classic with anyone who is looking. Bots fill the empty seats after 20 seconds.':
+      'Main Classic dengan siapa saja yang sedang cari lawan. Bot mengisi kursi kosong setelah 20 detik.',
   'Play a 0 and every hand moves one seat in the direction of play.':
       'Mainkan 0 dan semua kartu di tangan berpindah satu kursi searah permainan.',
   'Play a 7 and choose any player: you swap your whole hand with theirs.':
@@ -407,6 +418,7 @@ const indonesian = <String, String>{
   'Pressing HOLD when there is no match makes you take the box yourself.':
       'Menekan HOLD saat tidak cocok membuatmu sendiri yang mengambil kotak.',
   'Purple': 'Ungu',
+  'Quick Match': 'Quick Match',
   'Quick play': 'Main cepat',
   'Quit to menu': 'Keluar ke menu',
   'RECONNECTING': 'MENYAMBUNG ULANG',
@@ -414,11 +426,13 @@ const indonesian = <String, String>{
   'ROOM ID': 'ID ROOM',
   'Random': 'Acak',
   'Reach 25 cards and you are out': 'Sampai 25 kartu, kamu keluar',
+  'React': 'Reaksi',
   'Reconnecting…': 'Menyambung ulang…',
   'Red': 'Merah',
   'Red, yellow, green and blue. Numbers 1–9, Skip, Reverse and Flip.':
       'Merah, kuning, hijau, dan biru. Angka 1–9, Skip, Reverse, dan Flip.',
   'Rejoin': 'Gabung lagi',
+  'Rematch': 'Main lagi',
   'Restart': 'Mulai ulang',
   'Restart match': 'Ulangi pertandingan',
   'Resume': 'Lanjutkan',
@@ -470,6 +484,7 @@ const indonesian = <String, String>{
       'Skip, Reverse, +2, dan kartu aksi berwarna lainnya: 20.',
   'Skip, Reverse, +2: 20 points each.':
       'Skip, Reverse, +2: masing-masing 20 poin.',
+  'So close!': 'Dikit lagi!',
   'Sound effects': 'Efek suara',
   'Special cards': 'Kartu spesial',
   'Stack a draw card or take +{n}': 'Tumpuk kartu plus atau ambil +{n}',
@@ -479,6 +494,7 @@ const indonesian = <String, String>{
   'Standard 108-card deck: numbers 0–9, Skip, Reverse, +2 in four colors, plus Wild and Wild +4.':
       'Dek standar 108 kartu: angka 0–9, Skip, Reverse, +2 dalam empat warna, plus Wild dan Wild +4.',
   'Start here': 'Mulai di sini',
+  'Start now': 'Mulai sekarang',
   'Start {mode}': 'Mulai {mode}',
   'Stay': 'Tetap',
   'Swap hands with…': 'Tukar kartu dengan…',

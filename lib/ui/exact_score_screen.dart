@@ -28,6 +28,7 @@ class ExactScoreScreen extends StatefulWidget {
     this.difficulty = Difficulty.normal,
     this.target,
     this.table,
+    this.onRematch,
   });
 
   final GameMode mode;
@@ -39,6 +40,9 @@ class ExactScoreScreen extends StatefulWidget {
 
   /// An online table mirrored from the server; null plays offline vs bots.
   final ExactScoreTable? table;
+
+  /// Online, for the host: start the same mode again.
+  final VoidCallback? onRematch;
 
   @override
   State<ExactScoreScreen> createState() => _ExactScoreScreenState();
@@ -526,6 +530,7 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
               table.dispose();
               setState(_newGame);
             },
+      onRematch: widget.onRematch,
       onMenu: () => Navigator.pop(context),
     );
   }

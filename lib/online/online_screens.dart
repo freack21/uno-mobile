@@ -1,3 +1,6 @@
+import 'dart:async';
+import 'dart:math';
+
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
@@ -17,6 +20,7 @@ import '../ui/party_widgets.dart';
 import '../ui/theme.dart';
 import 'browser.dart';
 import 'online_tables.dart';
+import 'reactions.dart';
 import 'session.dart';
 
 OnlineSession get _session => OnlineSession.instance;
@@ -83,6 +87,7 @@ class _OnlineHomeScreenState extends State<OnlineHomeScreen> {
   }
 
   void _create() => _run(_session.create);
+  void _quick() => _run(_session.quick);
   void _join() => _run(() async {
     final problem = await _session.join(_room.text, _pass.text);
     // A saved room that is gone (expired): do not offer it again.
@@ -141,6 +146,31 @@ class _OnlineHomeScreenState extends State<OnlineHomeScreen> {
             ),
             const SizedBox(height: 14),
           ],
+          _Card(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(t('Quick Match'), style: font(18, weight: 650)),
+                const SizedBox(height: 4),
+                Text(
+                  t(
+                    'Play Classic with anyone who is looking. Bots fill the empty seats after 20 seconds.',
+                  ),
+                  style: font(14, color: Palette.muted),
+                ),
+                const SizedBox(height: 14),
+                FilledButton.icon(
+                  onPressed: _busy ? null : _quick,
+                  style: FilledButton.styleFrom(
+                    backgroundColor: const Color(0xFF2EA358),
+                  ),
+                  icon: const Icon(Icons.bolt_rounded),
+                  label: Text(t('Find a match')),
+                ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
           _Card(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -469,7 +499,13 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
               onRename: _rename,
             ),
             const SizedBox(height: 14),
-            if (playing && !_inMatch)
+            if (room['quickInMs'] != null)
+              _QuickWait(
+                ms: room['quickInMs'] as int,
+                people: members.where((m) => m['online'] == true).length,
+                host: host,
+              )
+            else if (playing && !_inMatch)
               _Card(
                 child: Row(
                   children: [
@@ -657,6 +693,102 @@ class _Players extends StatelessWidget {
     );
   }
 }
+
+/// Quick Match: waiting for more people, with the countdown to bots.
+class _QuickWait extends StatefulWidget {
+  const _QuickWait({
+    required this.ms,
+    required this.people,
+    required this.host,
+  });
+
+  /// Time left when the room was last updated.
+  final int ms;
+  final int people;
+  final bool host;
+
+  @override
+  State<_QuickWait> createState() => _QuickWaitState();
+}
+
+class _QuickWaitState extends State<_QuickWait> {
+  late DateTime _end = DateTime.now().add(Duration(milliseconds: widget.ms));
+  late final Timer _tick;
+
+  @override
+  void initState() {
+    super.initState();
+    _tick = Timer.periodic(
+      const Duration(milliseconds: 250),
+      (_) => setState(() {}),
+    );
+  }
+
+  @override
+  void didUpdateWidget(_QuickWait old) {
+    super.didUpdateWidget(old);
+    if (old.ms != widget.ms) {
+      _end = DateTime.now().add(Duration(milliseconds: widget.ms));
+    }
+  }
+
+  @override
+  void dispose() {
+    _tick.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final left = max(
+      0,
+      (_end.difference(DateTime.now()).inMilliseconds / 1000).ceil(),
+    );
+    return _Card(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Row(
+            children: [
+              const SizedBox.square(
+                dimension: 22,
+                child: CircularProgressIndicator(strokeWidth: 2.5),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Text(
+                  t('Finding players… {n}/{max}', {
+                    'n': widget.people,
+                    'max': quickSeats,
+                  }),
+                  style: font(18, weight: 650),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            t('Classic starts in {s}s. Bots take the empty seats.', {
+              's': left,
+            }),
+            style: font(14, color: Palette.muted),
+          ),
+          if (widget.host) ...[
+            const SizedBox(height: 14),
+            FilledButton.icon(
+              onPressed: _session.start,
+              icon: const Icon(Icons.play_arrow_rounded),
+              label: Text(t('Start now')),
+            ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+/// Seats at a Quick Match table (matches the server's quickSize).
+const quickSeats = 4;
 
 class _SetupCard extends StatelessWidget {
   const _SetupCard({
@@ -1186,12 +1318,137 @@ class _OnlineMatchScreenState extends State<OnlineMatchScreen> {
 
   @override
   Widget build(BuildContext context) {
+    // The host can start the same mode again from the results.
+    final rematch = _session.isHost ? _session.start : null;
     final screen = _shed != null
-        ? GameScreen(mode: _mode, controller: _shed)
+        ? GameScreen(mode: _mode, controller: _shed, onRematch: rematch)
         : _exact != null
-        ? ExactScoreScreen(mode: _mode, table: _exact)
-        : HoldCardScreen(mode: _mode, table: _hold);
+        ? ExactScoreScreen(mode: _mode, table: _exact, onRematch: rematch)
+        : HoldCardScreen(mode: _mode, table: _hold, onRematch: rematch);
     // The header says "Reconnecting…" while the connection is down.
-    return screen;
+    final top = MediaQuery.paddingOf(context).top;
+    return Stack(
+      children: [
+        screen,
+        Positioned(
+          top: top + 4,
+          right: 52,
+          child: IconButton(
+            tooltip: t('React'),
+            onPressed: _pickReaction,
+            icon: const Icon(Icons.add_reaction_outlined),
+          ),
+        ),
+        Positioned(
+          top: top + 150,
+          left: 12,
+          right: 12,
+          child: IgnorePointer(child: _ReactionBubbles(names: _names)),
+        ),
+      ],
+    );
+  }
+
+  /// Member id → nickname, "You" for this player.
+  String _names(String id) {
+    if (id == _session.myId) return t('You');
+    final members = (_session.room?['members'] as List?) ?? const [];
+    for (final m in members) {
+      if (m['id'] == id) return m['name'] as String;
+    }
+    return '';
+  }
+
+  Future<void> _pickReaction() async {
+    final pick = await showModalBottomSheet<int>(
+      context: context,
+      builder: (context) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              for (var r = 0; r < reactionCount; r++)
+                ActionChip(
+                  label: Text(
+                    reactionText(r),
+                    style: font(r < 6 ? 24 : 15, weight: 600),
+                  ),
+                  onPressed: () => Navigator.pop(context, r),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+    if (pick != null) _session.react(pick);
+  }
+}
+
+/// Reactions that just arrived, as short-lived pills.
+class _ReactionBubbles extends StatelessWidget {
+  const _ReactionBubbles({required this.names});
+
+  final String Function(String id) names;
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder<List<Reaction>>(
+      valueListenable: _session.reactions,
+      builder: (context, list, _) => Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          for (final r in list)
+            TweenAnimationBuilder<double>(
+              key: ValueKey(r.id),
+              tween: Tween(begin: 0, end: 1),
+              duration: const Duration(milliseconds: 250),
+              curve: Curves.easeOutBack,
+              builder: (context, v, child) => Opacity(
+                opacity: v.clamp(0, 1),
+                child: Transform.scale(
+                  scale: 0.8 + 0.2 * v,
+                  alignment: Alignment.centerLeft,
+                  child: child,
+                ),
+              ),
+              child: Container(
+                margin: const EdgeInsets.only(bottom: 6),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 12,
+                  vertical: 6,
+                ),
+                decoration: BoxDecoration(
+                  color: Palette.surface,
+                  borderRadius: BorderRadius.circular(16),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.25),
+                      blurRadius: 8,
+                      offset: const Offset(0, 2),
+                    ),
+                  ],
+                ),
+                child: Text.rich(
+                  TextSpan(
+                    children: [
+                      TextSpan(
+                        text: '${names(r.from)}  ',
+                        style: font(13, weight: 650, color: Palette.muted),
+                      ),
+                      TextSpan(
+                        text: reactionText(r.pick),
+                        style: font(r.pick < 6 ? 20 : 15, weight: 650),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
   }
 }
