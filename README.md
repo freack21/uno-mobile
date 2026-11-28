@@ -62,11 +62,12 @@ plus a shared "How to play" basics page.
 "Play online with friends" needs no account:
 
 1. One player creates a room and gets a random nickname, a 6-character room
-   ID, a 4-digit password and an invite link (`https://<host>/#join=ID-PASS`)
-   to share through WhatsApp etc.
+   ID, a 4-digit password and an invite link (`https://<host>/join/ID-PASS`,
+   which opens the Android app when it is installed) to share through
+   WhatsApp etc.
 2. Friends open the link (or type the ID and password). Everyone can pick any
    nickname that nobody else in the room is using.
-3. The host picks the mode (all modes except Custom) and optional bots, then
+3. The host picks the mode (any of them, Custom rules included) and optional bots, then
    starts. Every match awards placement points — 1st 10, 2nd 6, 3rd 3,
    others 1 — and the lobby shows each match's winner, the running totals and
    a final score.
@@ -78,6 +79,26 @@ who drop out are reconnected automatically with a saved token; a player who
 stays idle on their turn is played for after 25 seconds, and someone who
 leaves is replaced by a bot. Rooms are saved to disk, so they survive a
 server restart or redeploy, and a running match carries on where it was.
+
+Without friends at hand, **Quick Match** seats you with whoever else is
+looking; after 20 seconds bots take the empty seats. During online matches
+players can send quick reactions (a fixed set of emoji and phrases, no free
+text chat), and the host can start a rematch from the results.
+
+## More to play
+
+- **Bahasa Indonesia and English**: follows the device, or pick one on the
+  home screen. Table messages are sent as keys, so every player reads them in
+  their own language.
+- **Guided first game**: offered on the first visit and from How to play;
+  tips explain what to do at every moment.
+- **Daily challenge**: the same seeded Classic deal for everyone each day,
+  one try, scored by the points left in the opponents' hands, with a daily
+  leaderboard (kept for seven days).
+- **Stats and achievements**: games, wins, streaks, results per mode and
+  twelve achievements, kept on the device.
+- **Light and dark** looks, and a [privacy policy](web/privacy.html)
+  (served at `/privacy`).
 
 ## Project layout
 

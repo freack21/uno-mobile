@@ -3,8 +3,9 @@
 The same Flutter code builds an Android app next to the PWA. In the app:
 
 - Online play connects to `wss://uno.refandi.my.id/ws` and invite links point
-  to `https://uno.refandi.my.id/#join=…` (friends without the app join from the
-  browser). Build with `--dart-define=LC_HOST=other.host` for another server.
+  to `https://uno.refandi.my.id/join/…`. With the app installed Android opens
+  them in the app; friends without it join from the browser. Build with
+  `--dart-define=LC_HOST=other.host` for another server.
 - Sound effects are the web sounds rendered to `assets/sfx/*.wav`
   (`tool/render_sfx.js`); re-render them after changing `web/sfx.js`.
 - Settings (light/dark, sound, the room to come back to) are kept with
@@ -68,3 +69,21 @@ with the debug key.
 ```bash
 git tag v0.2.0 && git push origin v0.2.0
 ```
+
+## Invite links (App Links)
+
+Android only opens `https://uno.refandi.my.id/join/…` in the app when
+`web/.well-known/assetlinks.json` lists the SHA-256 fingerprint of the
+certificate the installed app is signed with. It holds the current upload
+key's fingerprint. If you create a new key, or publish through Google Play
+(Play App Signing re-signs the app with Google's key), add that fingerprint
+too (Play Console → Setup → App signing shows it):
+
+```bash
+keytool -list -v -keystore android/upload-keystore.jks -alias upload | grep SHA256
+```
+
+Check the link handling on a phone with
+`adb shell pm get-app-links com.freack21.uno_mobile` (the domain should be
+`verified`).
+
