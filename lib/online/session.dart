@@ -11,6 +11,22 @@ import 'browser.dart';
 import 'reactions.dart';
 
 /// The public game server the app connects to (and invite links point to);
+
+/// The game server's WebSocket address.
+Uri gameServerUrl() {
+  // The app talks to the public server; the web build to its own host.
+  if (!kIsWeb) return Uri.parse('wss://$appHost/ws');
+  final override = Uri.base.queryParameters['ws'];
+  if (override != null) return Uri.parse(override);
+  final base = Uri.base;
+  return Uri(
+    scheme: base.scheme == 'https' ? 'wss' : 'ws',
+    host: base.host,
+    port: base.hasPort ? base.port : null,
+    path: '/ws',
+  );
+}
+
 /// override with --dart-define=LC_HOST=... for a test server.
 const appHost = String.fromEnvironment(
   'LC_HOST',
@@ -68,20 +84,6 @@ class OnlineSession extends ChangeNotifier {
     } catch (_) {
       return null;
     }
-  }
-
-  Uri get _url {
-    // The app talks to the public server; the web build to its own host.
-    if (!kIsWeb) return Uri.parse('wss://$appHost/ws');
-    final override = Uri.base.queryParameters['ws'];
-    if (override != null) return Uri.parse(override);
-    final base = Uri.base;
-    return Uri(
-      scheme: base.scheme == 'https' ? 'wss' : 'ws',
-      host: base.host,
-      port: base.hasPort ? base.port : null,
-      path: '/ws',
-    );
   }
 
   /// Link that opens the app straight into this room.
@@ -191,7 +193,7 @@ class OnlineSession extends ChangeNotifier {
     if (connected && _channel != null) return null;
     _close();
     try {
-      final channel = WebSocketChannel.connect(_url);
+      final channel = WebSocketChannel.connect(gameServerUrl());
       await channel.ready.timeout(const Duration(seconds: 8));
       _channel = channel;
     } catch (_) {

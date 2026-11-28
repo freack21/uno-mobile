@@ -455,7 +455,7 @@ class _GameScreenState extends State<GameScreen> {
                   t('How to play {mode}', {'mode': widget.mode.name}),
                 ),
               ),
-              if (!c.online) ...[
+              if (!c.online && !c.daily) ...[
                 const SizedBox(height: 10),
                 OutlinedButton.icon(
                   onPressed: () => Navigator.pop(context, 'restart'),
@@ -2166,16 +2166,24 @@ class _ResultsState extends State<_Results> {
                         onPressed: c.nextRound,
                         child: Text(t('Next round')),
                       )
+                    else if (c.daily)
+                      // One try a day: on to the leaderboard.
+                      FilledButton(
+                        onPressed: widget.onMenu,
+                        child: Text(t('See the leaderboard')),
+                      )
                     else
                       FilledButton(
                         onPressed: c.restart,
                         child: Text(t('Play again')),
                       ),
-                    const SizedBox(height: 10),
-                    OutlinedButton(
-                      onPressed: widget.onMenu,
-                      child: Text(t('Menu')),
-                    ),
+                    if (!c.daily) ...[
+                      const SizedBox(height: 10),
+                      OutlinedButton(
+                        onPressed: widget.onMenu,
+                        child: Text(t('Menu')),
+                      ),
+                    ],
                   ],
                 ],
               ),

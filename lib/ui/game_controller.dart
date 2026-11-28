@@ -38,6 +38,7 @@ class GameController extends ChangeNotifier {
     required this.rules,
     required this.playerCount,
     required this.difficulty,
+    this.seed,
   }) : send = null {
     _newGame();
   }
@@ -53,7 +54,8 @@ class GameController extends ChangeNotifier {
              as Map<String, dynamic>,
        ),
        playerCount = ((match['view'] as Map)['players'] as List).length,
-       difficulty = Difficulty.normal {
+       difficulty = Difficulty.normal,
+       seed = null {
     applyRemote(match);
   }
 
@@ -73,7 +75,11 @@ class GameController extends ChangeNotifier {
   final int playerCount;
   final Difficulty difficulty;
 
-  final _rng = Random();
+  /// Fixes the deal and the bots' luck (the daily challenge); one game only.
+  final int? seed;
+  bool get daily => seed != null;
+
+  late final _rng = Random(seed);
   late Game game;
   late List<Bot?> _bots;
 
@@ -182,7 +188,7 @@ class GameController extends ChangeNotifier {
   }
 
   void restart() {
-    if (online) return;
+    if (online || daily) return;
     _paused = false;
     _newGame();
   }

@@ -24,6 +24,7 @@ Set<String> sourceStrings() {
     RegExp(r'GuideSection\(\s*' + s),
     RegExp(r'_Toggle\(\s*' + s + r'\s*,\s*' + s),
     RegExp(r'(?:error|Problem)\(\s*(?:const\s+)?' + s),
+    RegExp(r'\) return ' + s),
   ];
   final bullet = RegExp(r'^\s+' + s + r',\s*$', multiLine: true);
   final files =
@@ -31,6 +32,7 @@ Set<String> sourceStrings() {
         ...Directory('lib').listSync(recursive: true),
         ...Directory('packages/last_card_core/lib').listSync(),
         File('server/lib/rooms.dart'),
+        File('server/lib/daily.dart'),
       ].whereType<File>().where(
         (f) => f.path.endsWith('.dart') && !f.path.endsWith('i18n_id.dart'),
       );
@@ -55,7 +57,7 @@ Set<String> sourceStrings() {
   // Interpolated Dart strings ('$value') are values, not text.
   return {
     for (final k in found)
-      if (!k.contains(r'$')) k,
+      if (k.trim().isNotEmpty && !k.contains(r'$')) k,
   };
 }
 

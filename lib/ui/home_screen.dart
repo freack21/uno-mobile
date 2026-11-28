@@ -7,6 +7,7 @@ import 'package:last_card_core/rules.dart';
 
 import '../online/online_screens.dart';
 import '../online/session.dart';
+import 'daily.dart';
 import 'game_screen.dart';
 import 'guide_screen.dart';
 import 'lang_switch.dart';
@@ -156,6 +157,19 @@ class _Hero extends StatelessWidget {
           ),
           icon: const Icon(Icons.groups_rounded),
           label: Text(t('Play online with friends')),
+        ),
+        const SizedBox(height: 10),
+        FilledButton.icon(
+          style: FilledButton.styleFrom(
+            backgroundColor: const Color(0xFFF4B620),
+            foregroundColor: const Color(0xFF2A2210),
+          ),
+          onPressed: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => const DailyScreen()),
+          ),
+          icon: const Icon(Icons.today_rounded),
+          label: Text(t('Daily challenge')),
         ),
         const SizedBox(height: 10),
         Row(

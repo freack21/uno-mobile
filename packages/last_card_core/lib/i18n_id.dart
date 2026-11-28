@@ -121,6 +121,8 @@ const indonesian = <String, String>{
   'Choose the deck: Classic, Merciless or Flipside.':
       'Pilih dek: Classic, Merciless, atau Flipside.',
   'Classic': 'Classic',
+  'Classic against three bots. Win to score the points left in your opponents\' hands. One try per day.':
+      'Classic melawan tiga bot. Menangkan untuk mendapat poin dari sisa kartu di tangan lawan. Satu kali coba per hari.',
   'Classic rules with a turn clock: you have 8 seconds to act.':
       'Aturan Classic dengan jam giliran: kamu punya 8 detik untuk bertindak.',
   'Classic rules, played over several rounds.':
@@ -145,6 +147,7 @@ const indonesian = <String, String>{
   'DEALER': 'PEMBAGI',
   'DISCARD ALL': 'DISCARD ALL',
   'DRAW': 'AMBIL',
+  'Daily challenge': 'Tantangan harian',
   'Daily player': 'Pemain harian',
   'Dark': 'Gelap',
   'Dark side': 'Sisi gelap',
@@ -256,6 +259,7 @@ const indonesian = <String, String>{
   'If your partner is close to going out, keep the color they are likely to hold.':
       'Jika rekanmu hampir habis kartunya, pertahankan warna yang kemungkinan dia pegang.',
   'Invalid custom rules': 'Aturan custom tidak valid',
+  'Invalid score': 'Skor tidak valid',
   'Invite friends': 'Undang teman',
   'Invite link copied — paste it in WhatsApp':
       'Link undangan tersalin — tempel di WhatsApp',
@@ -288,6 +292,10 @@ const indonesian = <String, String>{
   'Last card sets the color': 'Kartu terakhir menentukan warna',
   'Last card!': 'Last Card!',
   'Later': 'Nanti',
+  'Leaderboard': 'Papan skor',
+  'Leaderboard name': 'Nama di papan skor',
+  'Leaderboard unavailable. Check your connection.':
+      'Papan skor tidak tersedia. Cek koneksimu.',
   'Leave': 'Keluar',
   'Leave room': 'Keluar room',
   'Leave the room?': 'Keluar dari room?',
@@ -341,6 +349,8 @@ const indonesian = <String, String>{
       'Tidak cocok? Kartu tetap di kotak, isi kotak terus bertambah dan permainan berlanjut.',
   'No matches yet. Points add up over every mode you play.':
       'Belum ada pertandingan. Poin terus bertambah dari setiap mode yang kamu mainkan.',
+  'No scores yet today. Be the first!':
+      'Belum ada skor hari ini. Jadilah yang pertama!',
   'Nobody has points to take yet': 'Belum ada yang punya poin untuk diambil',
   'Nobody is on one card · you draw 2':
       'Tak ada yang tinggal satu kartu · kamu ambil 2',
@@ -420,6 +430,7 @@ const indonesian = <String, String>{
   'Play same-number cards together': 'Mainkan kartu angka sama sekaligus',
   'Play the card you drew or keep it':
       'Mainkan kartu yang kamu ambil atau simpan',
+  'Play today\'s deal': 'Main tantangan hari ini',
   'Play your first card as usual: it must match the color or the symbol.':
       'Mainkan kartu pertamamu seperti biasa: harus cocok warna atau simbolnya.',
   'Play {mode}': 'Main {mode}',
@@ -427,9 +438,11 @@ const indonesian = <String, String>{
   'Playable cards in your hand are lifted; the others are dimmed.':
       'Kartu di tanganmu yang bisa dimainkan terangkat; yang lain diredupkan.',
   'Played': 'Dimainkan',
+  'Player {n}': 'Pemain {n}',
   'Players · {n}/6': 'Pemain · {n}/6',
   'Playing Flip turns every card over — hands, deck and discard pile. Play continues on the other side.':
       'Memainkan Flip membalik semua kartu — di tangan, dek, dan tumpukan buang. Permainan berlanjut di sisi sebaliknya.',
+  'Playing as {name}': 'Bermain sebagai {name}',
   'Point Race + Challenge: bluffs that really cost.':
       'Point Race + Challenge: gertakan yang benar-benar mahal.',
   'Points': 'Poin',
@@ -445,6 +458,7 @@ const indonesian = <String, String>{
   'REVERSE': 'REVERSE',
   'ROOM ID': 'ID ROOM',
   'Random': 'Acak',
+  'Rank {rank} of {n}': 'Peringkat {rank} dari {n}',
   'Reach 25 cards and you are out': 'Sampai 25 kartu, kamu keluar',
   'React': 'Reaksi',
   'Reconnecting…': 'Menyambung ulang…',
@@ -473,6 +487,7 @@ const indonesian = <String, String>{
   'Same as device': 'Ikuti perangkat',
   'Same card? Slam it down, even out of turn.':
       'Kartu sama? Banting saja, walau bukan giliranmu.',
+  'Same deal for everyone today': 'Kartu yang sama untuk semua orang hari ini',
   'Sandbox': 'Bebas atur',
   'Save': 'Simpan',
   'Save Wild cards for when you are stuck.':
@@ -481,6 +496,7 @@ const indonesian = <String, String>{
       'Simpan 7 untuk saat orang lain hampir menang, lalu ambil kartunya.',
   'Scoreboard': 'Papan skor',
   'Scoring': 'Skor',
+  'See the leaderboard': 'Lihat papan skor',
   'Seen it all': 'Sudah coba semua',
   'Seven-O': 'Seven-O',
   'Seven-O (Custom): 7s swap hands once and 0s pass hands once, however many you play.':
@@ -552,6 +568,7 @@ const indonesian = <String, String>{
   'Teal': 'Toska',
   'Team {a} wins the round!': 'Tim {a} menang ronde!',
   'Teams 2v2': 'Team 2v2',
+  'That day is over': 'Hari itu sudah lewat',
   'That move is not possible right now':
       'Langkah itu tidak bisa dilakukan sekarang',
   'The backs of opponents\' cards (and the deck) show their other side, so you can see what is coming.':
@@ -592,6 +609,7 @@ const indonesian = <String, String>{
       'Terlalu tinggi? KELEBIHAN — kartunya hangus dan giliranmu berakhir.',
   'Too late — the table moved on.': 'Terlambat — meja sudah lanjut.',
   'Too slow! You take the box': 'Terlalu lambat! Kamu ambil kotaknya',
+  'Try again': 'Coba lagi',
   'Turn sounds on': 'Nyalakan suara',
   'Turn timer': 'Timer giliran',
   'Two +2s make the next player draw 4 (or answer with a stack if Stacking is on).':
@@ -605,6 +623,7 @@ const indonesian = <String, String>{
       'Dua tim berdua. Rekan duduk berhadapan.',
   'Two-sided deck. One Flip and everything turns dark.':
       'Dek dua sisi. Satu Flip dan semuanya jadi gelap.',
+  'Unknown device': 'Perangkat tidak dikenal',
   'Unknown message': 'Pesan tidak dikenal',
   'Unstoppable': 'Tak terbendung',
   'Update': 'Perbarui',
@@ -734,6 +753,7 @@ const indonesian = <String, String>{
       'Rekanmu ditandai dengan lencana tim.',
   'Your points stay with the room. A bot takes your seat if a match is running.':
       'Poinmu tetap tersimpan di room. Bot akan menggantikan kursimu jika pertandingan sedang berjalan.',
+  'Your score today: {n}': 'Skormu hari ini: {n}',
   'Your team': 'Timmu',
   'Your team wins the round!': 'Timmu menang ronde!',
   'Your team wins!': 'Timmu menang!',
