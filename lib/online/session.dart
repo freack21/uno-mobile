@@ -5,6 +5,8 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:material_ui/material_ui.dart';
 import 'package:web_socket_channel/web_socket_channel.dart';
 
+import 'package:last_card_core/i18n.dart';
+
 import 'browser.dart';
 
 /// The public game server the app connects to (and invite links point to);
@@ -46,6 +48,9 @@ class OnlineSession extends ChangeNotifier {
 
   /// Last error for a snackbar; [errorId] changes with every new error.
   String? error;
+
+  /// [error] in English, to tell errors apart in any language.
+  String? errorKey;
   int errorId = 0;
 
   bool get inRoom => room != null;
@@ -84,7 +89,7 @@ class OnlineSession extends ChangeNotifier {
     final origin = kIsWeb
         ? '${base.scheme}://${base.host}${base.hasPort ? ':${base.port}' : ''}'
         : 'https://$appHost';
-    return '$origin/#join=$roomId-$password';
+    return '$origin/join/$roomId-$password';
   }
 
   // --------------------------------------------------------------- rooms
@@ -111,7 +116,7 @@ class OnlineSession extends ChangeNotifier {
   void forgetSaved() => writeStored(_storeKey, null);
 
   /// Header label of an online match: shows when the connection dropped.
-  String get statusLabel => connected ? 'Online' : 'Reconnecting…';
+  String get statusLabel => connected ? t('Online') : t('Reconnecting…');
 
   void leave() {
     _send({'t': 'leave'});
@@ -150,7 +155,7 @@ class OnlineSession extends ChangeNotifier {
     _send(hello);
     final result = await _pending!.future.timeout(
       const Duration(seconds: 10),
-      onTimeout: () => 'The server did not answer. Try again.',
+      onTimeout: () => t('The server did not answer. Try again.'),
     );
     if (result != null) _stay = room != null;
     return result;
@@ -166,7 +171,7 @@ class OnlineSession extends ChangeNotifier {
       await channel.ready.timeout(const Duration(seconds: 8));
       _channel = channel;
     } catch (_) {
-      return 'Cannot reach the game server. Check your connection.';
+      return t('Cannot reach the game server. Check your connection.');
     }
     connected = true;
     _attempt = 0;
@@ -259,7 +264,13 @@ class OnlineSession extends ChangeNotifier {
       case 'match':
         match = msg;
       case 'error':
-        error = msg['msg'] as String;
+        // Shown in the reader's language: the server sends the English
+        // template and its values.
+        errorKey = (msg['key'] ?? msg['msg']) as String;
+        error = t(
+          errorKey!,
+          (msg['args'] as Map?)?.cast<String, Object?>() ?? {},
+        );
         errorId++;
         if (_pending != null) {
           _pending!.complete(error);
@@ -270,7 +281,7 @@ class OnlineSession extends ChangeNotifier {
           _close();
         }
       case 'rejected':
-        error = 'That move is not possible right now';
+        error = t('That move is not possible right now');
         errorId++;
       case 'left':
         room = null;

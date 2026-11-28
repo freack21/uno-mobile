@@ -2,13 +2,14 @@ import 'package:material_ui/material_ui.dart';
 
 import 'package:last_card_core/cards.dart';
 import 'package:last_card_core/hold_card.dart';
+import 'package:last_card_core/i18n.dart';
 import 'package:last_card_core/modes.dart';
 import 'package:last_card_core/rules.dart';
 
 import 'exact_score_screen.dart';
 import 'game_screen.dart';
-import 'hold_card_screen.dart';
 import 'guide_screen.dart';
+import 'hold_card_screen.dart';
 import 'theme.dart';
 
 /// Mode details: match setup on top, the full guide below, Start pinned.
@@ -106,7 +107,7 @@ class _ModeScreenState extends State<ModeScreen> {
                   children: [
                     Text(m.name, style: font(28, weight: 700)),
                     Text(
-                      m.tagline,
+                      t(m.tagline),
                       style: font(14, color: Palette.muted, height: 1.3),
                     ),
                   ],
@@ -118,7 +119,7 @@ class _ModeScreenState extends State<ModeScreen> {
           _Panel(
             children: [
               _Row(
-                label: 'Opponents',
+                label: t('Opponents'),
                 child: _Stepper(
                   value: players - 1,
                   min: minPlayers - 1,
@@ -127,7 +128,7 @@ class _ModeScreenState extends State<ModeScreen> {
                 ),
               ),
               _Row(
-                label: 'Bots',
+                label: t('Bots'),
                 child: _Segments<Difficulty>(
                   values: Difficulty.values,
                   selected: difficulty,
@@ -137,17 +138,17 @@ class _ModeScreenState extends State<ModeScreen> {
               ),
               if (m.kind == GameKind.exactScore)
                 _Row(
-                  label: 'Target',
+                  label: t('Target'),
                   child: _Segments<int>(
                     values: const [0, 20, 30, 40, 50],
                     selected: target,
-                    label: (v) => v == 0 ? 'Random' : '$v',
+                    label: (v) => v == 0 ? t('Random') : '$v',
                     onChanged: (v) => setState(() => target = v),
                   ),
                 ),
               if (m.kind == GameKind.holdCard)
                 _Row(
-                  label: 'Guess',
+                  label: t('Guess'),
                   child: _Segments<HoldGuess>(
                     values: HoldGuess.values,
                     selected: guess,
@@ -157,7 +158,7 @@ class _ModeScreenState extends State<ModeScreen> {
                 ),
               if (rules.format == MatchFormat.points)
                 _Row(
-                  label: 'Target',
+                  label: t('Target'),
                   child: _Segments<int>(
                     values: const [250, 500, 1000],
                     selected: rules.targetScore,
@@ -169,7 +170,7 @@ class _ModeScreenState extends State<ModeScreen> {
             ],
           ),
           const SizedBox(height: 28),
-          Text('How to play', style: font(22, weight: 700)),
+          Text(t('How to play'), style: font(22, weight: 700)),
           const SizedBox(height: 14),
           GuideSections(sections: m.guide),
           Material(
@@ -180,9 +181,9 @@ class _ModeScreenState extends State<ModeScreen> {
                 borderRadius: BorderRadius.circular(18),
               ),
               leading: const Icon(Icons.school_rounded, color: Palette.brand),
-              title: Text('Basic rules', style: font(16, weight: 600)),
+              title: Text(t('Basic rules'), style: font(16, weight: 600)),
               subtitle: Text(
-                'Matching, action cards, Last Card and scoring.',
+                t('Matching, action cards, Last Card and scoring.'),
                 style: font(13, color: Palette.muted),
               ),
               trailing: const Icon(Icons.chevron_right_rounded),
@@ -200,7 +201,7 @@ class _ModeScreenState extends State<ModeScreen> {
           child: FilledButton.icon(
             onPressed: _start,
             icon: const Icon(Icons.play_arrow_rounded),
-            label: Text('Play ${m.name}'),
+            label: Text(t('Play {mode}', {'mode': m.name})),
           ),
         ),
       ),
@@ -213,7 +214,7 @@ List<Widget> customRuleRows(RuleSet r, ValueChanged<RuleSet>? onChanged) {
   void set(RuleSet next) => onChanged?.call(next);
   return [
     _Row(
-      label: 'Deck',
+      label: t('Deck'),
       child: _Segments<DeckType>(
         values: DeckType.values,
         selected: r.deck,
@@ -222,29 +223,29 @@ List<Widget> customRuleRows(RuleSet r, ValueChanged<RuleSet>? onChanged) {
       ),
     ),
     _Row(
-      label: 'Format',
+      label: t('Format'),
       child: _Segments<MatchFormat>(
         values: r.teams
             ? const [MatchFormat.single, MatchFormat.points]
             : MatchFormat.values,
         selected: r.format,
         label: (f) => switch (f) {
-          MatchFormat.single => 'Single',
-          MatchFormat.points => 'Points',
-          MatchFormat.elimination => 'Elim.',
+          MatchFormat.single => t('Single'),
+          MatchFormat.points => t('Points'),
+          MatchFormat.elimination => t('Elim.'),
         },
         onChanged: (f) => set(r.copyWith(format: f)),
       ),
     ),
     _Row(
-      label: 'Stacking',
+      label: t('Stacking'),
       child: _Segments<StackRule>(
         values: StackRule.values,
         selected: r.stack,
         label: (s) => switch (s) {
-          StackRule.off => 'Off',
-          StackRule.same => 'Same',
-          StackRule.escalating => 'Higher',
+          StackRule.off => t('Off'),
+          StackRule.same => t('Same'),
+          StackRule.escalating => t('Higher'),
         },
         onChanged: (s) => set(r.copyWith(stack: s)),
       ),
@@ -379,8 +380,8 @@ class _Toggle extends StatelessWidget {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: font(15, weight: 600)),
-                  Text(subtitle, style: font(13, color: Palette.muted)),
+                  Text(t(title), style: font(15, weight: 600)),
+                  Text(t(subtitle), style: font(13, color: Palette.muted)),
                 ],
               ),
             ),

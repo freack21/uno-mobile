@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'package:last_card_core/cards.dart';
+import 'package:last_card_core/i18n.dart';
 import 'package:last_card_core/modes.dart';
 
 import 'playing_card.dart';
@@ -39,7 +40,7 @@ class GuideScreen extends StatelessWidget {
         backgroundColor: Palette.ink,
         surfaceTintColor: Colors.transparent,
         title: Text(
-          m == null ? 'How to play' : '${m.name} rules',
+          m == null ? t('How to play') : t('{mode} rules', {'mode': m.name}),
           style: font(19, weight: 650),
         ),
       ),
@@ -52,7 +53,10 @@ class GuideScreen extends StatelessWidget {
         ),
         children: [
           if (m != null) ...[
-            Text(m.tagline, style: font(17, weight: 500, color: Palette.muted)),
+            Text(
+              t(m.tagline),
+              style: font(17, weight: 500, color: Palette.muted),
+            ),
             const SizedBox(height: 20),
             GuideSections(sections: m.guide),
             const SizedBox(height: 8),
@@ -92,7 +96,7 @@ class _Section extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(s.title, style: font(18, weight: 650)),
+          Text(t(s.title), style: font(18, weight: 650)),
           const SizedBox(height: 10),
           for (final point in s.points)
             Padding(
@@ -111,7 +115,7 @@ class _Section extends StatelessWidget {
                   ),
                   Expanded(
                     child: Text(
-                      point,
+                      t(point),
                       style: font(15, weight: 420, height: 1.4),
                     ),
                   ),
@@ -159,9 +163,9 @@ class _BasicsLink extends StatelessWidget {
       child: ListTile(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(18)),
         leading: const Icon(Icons.school_rounded, color: Palette.brand),
-        title: Text('New to the game?', style: font(16, weight: 600)),
+        title: Text(t('New to the game?'), style: font(16, weight: 600)),
         subtitle: Text(
-          'Matching, action cards, Last Card and scoring.',
+          t('Matching, action cards, Last Card and scoring.'),
           style: font(13, color: Palette.muted),
         ),
         trailing: const Icon(Icons.chevron_right_rounded),

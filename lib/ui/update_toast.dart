@@ -1,5 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
+import 'package:last_card_core/i18n.dart';
+
 import '../online/session.dart';
 import 'app_update.dart';
 import 'theme.dart';
@@ -76,13 +78,13 @@ class _UpdateToastState extends State<UpdateToast> {
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Update available', style: font(15, weight: 650)),
+                  Text(t('Update available'), style: font(15, weight: 650)),
                   Text(
                     // Online you come straight back to the room; a game
                     // against bots lives only in this tab.
                     OnlineSession.instance.inRoom
-                        ? 'You rejoin your room right after.'
-                        : 'A game against bots will restart.',
+                        ? t('You rejoin your room right after.')
+                        : t('A game against bots will restart.'),
                     style: font(12.5, color: Palette.muted),
                   ),
                 ],
@@ -93,7 +95,7 @@ class _UpdateToastState extends State<UpdateToast> {
                   ? null
                   : () => setState(() => _dismissed = true),
               style: TextButton.styleFrom(foregroundColor: Palette.muted),
-              child: Text('Later', style: font(14, weight: 600)),
+              child: Text(t('Later'), style: font(14, weight: 600)),
             ),
             const SizedBox(width: 2),
             FilledButton(
@@ -119,7 +121,7 @@ class _UpdateToastState extends State<UpdateToast> {
                       ),
                     )
                   : Text(
-                      'Update',
+                      t('Update'),
                       style: font(14, weight: 650, color: Colors.white),
                     ),
             ),

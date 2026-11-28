@@ -1,9 +1,11 @@
 import 'package:flutter/services.dart';
+import 'package:material_ui/material_ui.dart';
+
 import 'package:last_card_core/hold_card.dart';
+import 'package:last_card_core/i18n.dart';
 import 'package:last_card_core/modes.dart';
 import 'package:last_card_core/protocol.dart';
 import 'package:last_card_core/rules.dart';
-import 'package:material_ui/material_ui.dart';
 
 import '../ui/exact_score_screen.dart';
 import '../ui/game_controller.dart';
@@ -84,7 +86,8 @@ class _OnlineHomeScreenState extends State<OnlineHomeScreen> {
   void _join() => _run(() async {
     final problem = await _session.join(_room.text, _pass.text);
     // A saved room that is gone (expired): do not offer it again.
-    if ((problem?.startsWith('Wrong room') ?? false) &&
+    if (problem != null &&
+        _session.errorKey == 'Wrong room ID or password' &&
         _session.saved?.$1 == _room.text.trim().toUpperCase()) {
       _session.forgetSaved();
     }
@@ -98,7 +101,7 @@ class _OnlineHomeScreenState extends State<OnlineHomeScreen> {
       appBar: AppBar(
         backgroundColor: Palette.ink,
         surfaceTintColor: Colors.transparent,
-        title: Text('Play online', style: font(19, weight: 650)),
+        title: Text(t('Play online'), style: font(19, weight: 650)),
       ),
       body: ListView(
         padding: EdgeInsets.fromLTRB(
@@ -109,7 +112,9 @@ class _OnlineHomeScreenState extends State<OnlineHomeScreen> {
         ),
         children: [
           Text(
-            'No account needed. Create a room, share the link, and play with friends.',
+            t(
+              'No account needed. Create a room, share the link, and play with friends.',
+            ),
             style: font(15, color: Palette.muted, height: 1.4),
           ),
           const SizedBox(height: 20),
@@ -121,7 +126,7 @@ class _OnlineHomeScreenState extends State<OnlineHomeScreen> {
                   const SizedBox(width: 12),
                   Expanded(
                     child: Text(
-                      'Back to room ${saved.$1}',
+                      t('Back to room {room}', {'room': saved.$1}),
                       style: font(16, weight: 600),
                     ),
                   ),
@@ -129,7 +134,7 @@ class _OnlineHomeScreenState extends State<OnlineHomeScreen> {
                     onPressed: _busy
                         ? null
                         : () => _run(() => _session.join(saved.$1, saved.$2)),
-                    child: const Text('Rejoin'),
+                    child: Text(t('Rejoin')),
                   ),
                 ],
               ),
@@ -140,17 +145,17 @@ class _OnlineHomeScreenState extends State<OnlineHomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Create a room', style: font(18, weight: 650)),
+                Text(t('Create a room'), style: font(18, weight: 650)),
                 const SizedBox(height: 4),
                 Text(
-                  'You get a room ID, a password and a link to share.',
+                  t('You get a room ID, a password and a link to share.'),
                   style: font(14, color: Palette.muted),
                 ),
                 const SizedBox(height: 14),
                 FilledButton.icon(
                   onPressed: _busy ? null : _create,
                   icon: const Icon(Icons.add_rounded),
-                  label: const Text('Create room'),
+                  label: Text(t('Create room')),
                 ),
               ],
             ),
@@ -160,14 +165,14 @@ class _OnlineHomeScreenState extends State<OnlineHomeScreen> {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text('Join a room', style: font(18, weight: 650)),
+                Text(t('Join a room'), style: font(18, weight: 650)),
                 const SizedBox(height: 12),
                 TextField(
                   controller: _room,
                   textCapitalization: TextCapitalization.characters,
-                  decoration: const InputDecoration(
-                    labelText: 'Room ID',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: t('Room ID'),
+                    border: const OutlineInputBorder(),
                   ),
                   inputFormatters: [LengthLimitingTextInputFormatter(6)],
                 ),
@@ -175,9 +180,9 @@ class _OnlineHomeScreenState extends State<OnlineHomeScreen> {
                 TextField(
                   controller: _pass,
                   keyboardType: TextInputType.number,
-                  decoration: const InputDecoration(
-                    labelText: 'Password',
-                    border: OutlineInputBorder(),
+                  decoration: InputDecoration(
+                    labelText: t('Password'),
+                    border: const OutlineInputBorder(),
                   ),
                   inputFormatters: [LengthLimitingTextInputFormatter(4)],
                   onSubmitted: (_) => _join(),
@@ -186,7 +191,7 @@ class _OnlineHomeScreenState extends State<OnlineHomeScreen> {
                 OutlinedButton.icon(
                   onPressed: _busy ? null : _join,
                   icon: const Icon(Icons.login_rounded),
-                  label: const Text('Join room'),
+                  label: Text(t('Join room')),
                 ),
               ],
             ),
@@ -311,18 +316,18 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
   Future<void> _share() async {
     final link = _session.inviteLink;
     final shared = await shareLink(
-      title: 'Last Card',
-      text:
-          'Join my Last Card room ${_session.roomId} (password ${_session.password}):',
+      title: t('Last Card'),
+      text: t('Join my Last Card room {room} (password {pass}):', {
+        'room': _session.roomId,
+        'pass': _session.password,
+      }),
       url: link,
     );
     if (shared || !mounted) return;
     await Clipboard.setData(ClipboardData(text: link));
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
-      const SnackBar(
-        content: Text('Invite link copied — paste it in WhatsApp'),
-      ),
+      SnackBar(content: Text(t('Invite link copied — paste it in WhatsApp'))),
     );
   }
 
@@ -331,7 +336,7 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
     final name = await showDialog<String>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Your nickname', style: font(20, weight: 650)),
+        title: Text(t('Your nickname'), style: font(20, weight: 650)),
         content: TextField(
           controller: controller,
           autofocus: true,
@@ -342,11 +347,11 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text('Cancel'),
+            child: Text(t('Cancel')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, controller.text),
-            child: const Text('Save'),
+            child: Text(t('Save')),
           ),
         ],
       ),
@@ -359,19 +364,23 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
     final ok = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
-        title: Text('Leave the room?', style: font(20, weight: 650)),
+        title: Text(t('Leave the room?'), style: font(20, weight: 650)),
         content: Text(
-          'Your points stay with the room. A bot takes your seat if a match is running.',
+          t(
+            t(
+              'Your points stay with the room. A bot takes your seat if a match is running.',
+            ),
+          ),
           style: font(15, color: Palette.muted),
         ),
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context, false),
-            child: const Text('Stay'),
+            child: Text(t('Stay')),
           ),
           FilledButton(
             onPressed: () => Navigator.pop(context, true),
-            child: const Text('Leave'),
+            child: Text(t('Leave')),
           ),
         ],
       ),
@@ -399,15 +408,21 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
           backgroundColor: Palette.ink,
           surfaceTintColor: Colors.transparent,
           automaticallyImplyLeading: false,
-          title: Text('Room ${room['id']}', style: font(19, weight: 650)),
+          title: Text(
+            t('Room {room}', {'room': room['id']}),
+            style: font(19, weight: 650),
+          ),
           actions: [
             if (!_session.connected)
-              const Padding(
+              Padding(
                 padding: EdgeInsets.only(right: 8),
-                child: PartyChip('RECONNECTING', color: Color(0xFF9B2A21)),
+                child: PartyChip(
+                  t('RECONNECTING'),
+                  color: const Color(0xFF9B2A21),
+                ),
               ),
             IconButton(
-              tooltip: 'Leave room',
+              tooltip: t('Leave room'),
               onPressed: _leave,
               icon: const Icon(Icons.logout_rounded),
             ),
@@ -433,8 +448,10 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
                     const SizedBox(width: 12),
                     Expanded(
                       child: Text(
-                        'The game server restarted, so the $mode match was '
-                        'stopped and not scored. Start it again when ready.',
+                        t(
+                          'The game server restarted, so the {mode} match was stopped and not scored. Start it again when ready.',
+                          {'mode': mode},
+                        ),
                         style: font(15, weight: 600),
                       ),
                     ),
@@ -465,8 +482,8 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
                                   m['id'] == _session.myId &&
                                   m['playing'] == true,
                             )
-                            ? 'Your match is running'
-                            : 'A match is running — you join the next one',
+                            ? t('Your match is running')
+                            : t('A match is running — you join the next one'),
                         style: font(15, weight: 600),
                       ),
                     ),
@@ -478,7 +495,7 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
                           _shownMatch = null;
                           _onSession();
                         },
-                        child: const Text('Open'),
+                        child: Text(t('Open')),
                       ),
                   ],
                 ),
@@ -496,7 +513,7 @@ class _LobbyScreenState extends State<LobbyScreen> with WidgetsBindingObserver {
               OutlinedButton.icon(
                 onPressed: _session.endSession,
                 icon: const Icon(Icons.flag_rounded),
-                label: const Text('Show final score'),
+                label: Text(t('Show final score')),
               ),
             ],
           ],
@@ -532,15 +549,15 @@ class _InviteCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              code('ROOM ID', room['id'] as String),
-              code('PASSWORD', room['pass'] as String),
+              code(t('ROOM ID'), room['id'] as String),
+              code(t('PASSWORD'), room['pass'] as String),
             ],
           ),
           const SizedBox(height: 12),
           FilledButton.icon(
             onPressed: onShare,
             icon: const Icon(Icons.share_rounded),
-            label: const Text('Invite friends'),
+            label: Text(t('Invite friends')),
           ),
         ],
       ),
@@ -567,7 +584,10 @@ class _Players extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Players · ${members.length}/6', style: font(18, weight: 650)),
+          Text(
+            t('Players · {n}/6', {'n': members.length}),
+            style: font(18, weight: 650),
+          ),
           const SizedBox(height: 8),
           for (final (i, m) in members.indexed)
             Padding(
@@ -610,12 +630,12 @@ class _Players extends StatelessWidget {
                         ],
                         if (m['id'] == me) ...[
                           const SizedBox(width: 6),
-                          const PartyChip('YOU', color: Color(0xFF2475D6)),
+                          PartyChip(t('YOU'), color: const Color(0xFF2475D6)),
                         ],
                         if (m['online'] != true) ...[
                           const SizedBox(width: 6),
                           Text(
-                            'offline',
+                            t('offline'),
                             style: font(12, color: Palette.muted),
                           ),
                         ],
@@ -625,7 +645,7 @@ class _Players extends StatelessWidget {
                   Text('${m['points']} pts', style: font(14, weight: 650)),
                   if (m['id'] == me)
                     IconButton(
-                      tooltip: 'Change nickname',
+                      tooltip: t('Change nickname'),
                       onPressed: () => onRename(m['name'] as String),
                       icon: const Icon(Icons.edit_rounded, size: 20),
                     ),
@@ -700,7 +720,7 @@ class _SetupCard extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Text(
-            host ? 'Next match' : 'Next match (host decides)',
+            host ? t('Next match') : t('Next match (host decides)'),
             style: font(18, weight: 650),
           ),
           const SizedBox(height: 8),
@@ -739,7 +759,7 @@ class _SetupCard extends StatelessWidget {
                         children: [
                           Text(mode.name, style: font(16, weight: 650)),
                           Text(
-                            mode.tagline,
+                            t(mode.tagline),
                             maxLines: 1,
                             overflow: TextOverflow.ellipsis,
                             style: font(13, color: Palette.muted),
@@ -754,7 +774,7 @@ class _SetupCard extends StatelessWidget {
             ),
           ),
           row(
-            'Bots',
+            t('Bots'),
             Row(
               mainAxisSize: MainAxisSize.min,
               children: [
@@ -776,7 +796,7 @@ class _SetupCard extends StatelessWidget {
           ),
           if (bots > 0)
             row(
-              'Bot level',
+              t('Bot level'),
               segments(
                 Difficulty.values,
                 difficulty,
@@ -786,18 +806,18 @@ class _SetupCard extends StatelessWidget {
             ),
           if (mode.kind == GameKind.exactScore)
             row(
-              'Target',
+              t('Target'),
               segments(
                 const [0, 20, 30, 40, 50],
                 setup['target'] as int,
-                (v) => v == 0 ? 'Random' : '$v',
+                (v) => v == 0 ? t('Random') : '$v',
                 (v) => set({'target': v}),
               ),
             ),
           if (mode.isCustom) ...[
             if (custom!.format == MatchFormat.points)
               row(
-                'Target',
+                t('Target'),
                 segments(
                   const [250, 500, 1000],
                   custom.targetScore,
@@ -811,7 +831,7 @@ class _SetupCard extends StatelessWidget {
           ],
           if (mode.kind == GameKind.holdCard)
             row(
-              'Guess',
+              t('Guess'),
               segments(
                 HoldGuess.values,
                 HoldGuess.values[setup['guess'] as int],
@@ -821,7 +841,11 @@ class _SetupCard extends StatelessWidget {
             ),
           const SizedBox(height: 6),
           Text(
-            '${players + bots} player${players + bots == 1 ? '' : 's'} at the table',
+            tn(
+              players + bots,
+              '1 player at the table',
+              '{n} players at the table',
+            ),
             textAlign: TextAlign.center,
             style: font(13, color: Palette.muted),
           ),
@@ -830,11 +854,11 @@ class _SetupCard extends StatelessWidget {
             FilledButton.icon(
               onPressed: _session.start,
               icon: const Icon(Icons.play_arrow_rounded),
-              label: Text('Start ${mode.name}'),
+              label: Text(t('Start {mode}', {'mode': mode.name})),
             )
           else
             Text(
-              'Waiting for the host to start…',
+              t('Waiting for the host to start…'),
               textAlign: TextAlign.center,
               style: font(15, weight: 600, color: Palette.muted),
             ),
@@ -845,7 +869,7 @@ class _SetupCard extends StatelessWidget {
               MaterialPageRoute(builder: (_) => GuideScreen(mode: mode)),
             ),
             icon: const Icon(Icons.menu_book_rounded, size: 18),
-            label: Text('How to play ${mode.name}'),
+            label: Text(t('How to play {mode}', {'mode': mode.name})),
           ),
         ],
       ),
@@ -879,7 +903,7 @@ class _ModePicker extends StatelessWidget {
         controller: scroll,
         padding: const EdgeInsets.fromLTRB(16, 0, 16, 24),
         children: [
-          Text('Choose a mode', style: font(22, weight: 700)),
+          Text(t('Choose a mode'), style: font(22, weight: 700)),
           const SizedBox(height: 10),
           for (final m in onlineModes)
             ListTile(
@@ -897,7 +921,10 @@ class _ModePicker extends StatelessWidget {
                 child: Icon(modeIcon(m.id), color: Colors.white, size: 20),
               ),
               title: Text(m.name, style: font(16, weight: 650)),
-              subtitle: Text(m.tagline, style: font(13, color: Palette.muted)),
+              subtitle: Text(
+                t(m.tagline),
+                style: font(13, color: Palette.muted),
+              ),
               onTap: () => Navigator.pop(context, m.id),
             ),
         ],
@@ -921,16 +948,16 @@ class _Scoreboard extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Text('Scoreboard', style: font(18, weight: 650)),
+          Text(t('Scoreboard'), style: font(18, weight: 650)),
           const SizedBox(height: 4),
           Text(
-            '1st 10 · 2nd 6 · 3rd 3 · others 1 point per match',
+            t('1st 10 · 2nd 6 · 3rd 3 · others 1 point per match'),
             style: font(12.5, color: Palette.muted),
           ),
           const SizedBox(height: 10),
           if (history.isEmpty)
             Text(
-              'No matches yet. Points add up over every mode you play.',
+              t('No matches yet. Points add up over every mode you play.'),
               style: font(14, color: Palette.muted),
             )
           else ...[
@@ -1046,7 +1073,7 @@ class _FinalScore extends StatelessWidget {
             color: Color(0xFFF4B620),
           ),
           const SizedBox(height: 6),
-          Text('Final score', style: font(24, weight: 700)),
+          Text(t('Final score'), style: font(24, weight: 700)),
           const SizedBox(height: 12),
           for (final (i, m) in ranked.indexed)
             Padding(

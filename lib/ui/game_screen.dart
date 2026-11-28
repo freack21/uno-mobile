@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 
 import 'package:last_card_core/cards.dart';
 import 'package:last_card_core/game.dart';
+import 'package:last_card_core/i18n.dart';
 import 'package:last_card_core/modes.dart';
 import 'package:last_card_core/rules.dart';
 
@@ -269,7 +270,11 @@ class _GameScreenState extends State<GameScreen> {
           .any((x) => x.id == card.id)) {
         setState(() => _combo.add(card));
       } else {
-        _flash('Only ${g.face(_combo.first).symbol} cards join this combo');
+        _flash(
+          t('Only {card} cards join this combo', {
+            'card': t(g.face(_combo.first).symbol),
+          }),
+        );
       }
       return;
     }
@@ -277,7 +282,7 @@ class _GameScreenState extends State<GameScreen> {
     if (!jump && !g.isPlayable(GameController.human, card)) {
       HapticFeedback.selectionClick();
       playSfx(Sfx.nope);
-      _flash(c.isMyTurn ? _whyNot(card) : 'Wait for your turn');
+      _flash(c.isMyTurn ? _whyNot(card) : t('Wait for your turn'));
       return;
     }
     if (!jump && g.comboPartners(GameController.human, card).isNotEmpty) {
@@ -325,9 +330,16 @@ class _GameScreenState extends State<GameScreen> {
   }
 
   String _whyNot(GameCard card) {
-    if (g.pendingDraw > 0) return 'Stack a draw card or take +${g.pendingDraw}';
-    if (g.phase == Phase.afterDraw) return 'Only the drawn card can be played';
-    return "Doesn't match ${g.activeColor.label} or ${g.topFace.symbol}";
+    if (g.pendingDraw > 0) {
+      return t('Stack a draw card or take +{n}', {'n': g.pendingDraw});
+    }
+    if (g.phase == Phase.afterDraw) {
+      return t('Only the drawn card can be played');
+    }
+    return t("Doesn't match {color} or {card}", {
+      'color': colorLabel(g.activeColor),
+      'card': t(g.topFace.symbol),
+    });
   }
 
   void _onDraw() {
@@ -355,10 +367,10 @@ class _GameScreenState extends State<GameScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Swap hands with…', style: font(22, weight: 650)),
+              Text(t('Swap hands with…'), style: font(22, weight: 650)),
               const SizedBox(height: 4),
               Text(
-                'You give your hand and take theirs.',
+                t('You give your hand and take theirs.'),
                 style: font(14, color: Palette.muted),
               ),
               const SizedBox(height: 16),
@@ -381,7 +393,7 @@ class _GameScreenState extends State<GameScreen> {
                               child: Text(p.name, style: font(17, weight: 600)),
                             ),
                             Text(
-                              '${p.hand.length} card${p.hand.length == 1 ? '' : 's'}',
+                              tn(p.hand.length, '1 card', '{n} cards'),
                               style: font(
                                 15,
                                 weight: 600,
@@ -412,13 +424,13 @@ class _GameScreenState extends State<GameScreen> {
             mainAxisSize: MainAxisSize.min,
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Text('Paused', style: font(24, weight: 700)),
+              Text(t('Paused'), style: font(24, weight: 700)),
               const SizedBox(height: 8),
               ValueListenableBuilder<bool>(
                 valueListenable: soundOn,
                 builder: (context, on, _) => SwitchListTile(
                   contentPadding: EdgeInsets.zero,
-                  title: Text('Sound effects', style: font(16, weight: 600)),
+                  title: Text(t('Sound effects'), style: font(16, weight: 600)),
                   secondary: Icon(
                     on ? Icons.volume_up_rounded : Icons.volume_off_rounded,
                   ),
@@ -429,27 +441,29 @@ class _GameScreenState extends State<GameScreen> {
               const SizedBox(height: 8),
               FilledButton(
                 onPressed: () => Navigator.pop(context),
-                child: const Text('Resume'),
+                child: Text(t('Resume')),
               ),
               const SizedBox(height: 10),
               OutlinedButton.icon(
                 onPressed: () => Navigator.pop(context, 'guide'),
                 icon: const Icon(Icons.menu_book_rounded),
-                label: Text('How to play ${widget.mode.name}'),
+                label: Text(
+                  t('How to play {mode}', {'mode': widget.mode.name}),
+                ),
               ),
               if (!c.online) ...[
                 const SizedBox(height: 10),
                 OutlinedButton.icon(
                   onPressed: () => Navigator.pop(context, 'restart'),
                   icon: const Icon(Icons.refresh_rounded),
-                  label: const Text('Restart match'),
+                  label: Text(t('Restart match')),
                 ),
               ],
               const SizedBox(height: 10),
               OutlinedButton.icon(
                 onPressed: () => Navigator.pop(context, 'quit'),
                 icon: const Icon(Icons.logout_rounded),
-                label: Text(c.online ? 'Back to lobby' : 'Quit to menu'),
+                label: Text(c.online ? t('Back to lobby') : t('Quit to menu')),
               ),
             ],
           ),
@@ -595,13 +609,13 @@ class _GameScreenState extends State<GameScreen> {
   String _subtitle() {
     final parts = <String>[];
     if (c.rules.format != MatchFormat.single) {
-      parts.add('Round ${g.round}');
+      parts.add(t('Round {n}', {'n': g.round}));
     }
     if (c.rules.format == MatchFormat.points) {
-      parts.add('to ${c.rules.targetScore}');
+      parts.add(t('to {n}', {'n': c.rules.targetScore}));
     }
     if (c.rules.deck == DeckType.flipside) {
-      parts.add(g.side == Side.light ? 'Light side' : 'Dark side');
+      parts.add(g.side == Side.light ? t('Light side') : t('Dark side'));
     }
     parts.add(
       c.online ? OnlineSession.instance.statusLabel : c.difficulty.label,
@@ -632,7 +646,7 @@ class _TopBar extends StatelessWidget {
       child: Row(
         children: [
           IconButton(
-            tooltip: 'Menu',
+            tooltip: t('Menu'),
             onPressed: onMenu,
             icon: const Icon(Icons.pause_rounded),
           ),
@@ -645,7 +659,7 @@ class _TopBar extends StatelessWidget {
             ),
           ),
           IconButton(
-            tooltip: 'How to play',
+            tooltip: t('How to play'),
             onPressed: onGuide,
             icon: const Icon(Icons.help_outline_rounded),
           ),
@@ -765,7 +779,7 @@ class _Seat extends StatelessWidget {
           ),
           const SizedBox(height: 4),
           Text(
-            p.out ? 'OUT' : p.name,
+            p.out ? t('OUT') : p.name,
             style: font(
               13,
               weight: 600,
@@ -776,13 +790,17 @@ class _Seat extends StatelessWidget {
             height: 26,
             child: Center(
               child: dealer
-                  ? const _Chip(label: 'DEALER', color: Color(0xFF7A4AD0))
+                  ? _Chip(label: t('DEALER'), color: const Color(0xFF7A4AD0))
                   : canCatch
-                  ? _Chip(label: 'CATCH!', color: Palette.brand, onTap: onCatch)
+                  ? _Chip(
+                      label: t('CATCH!'),
+                      color: Palette.brand,
+                      onTap: onCatch,
+                    )
                   : partner
-                  ? const _Chip(label: 'PARTNER', color: Color(0xFF2475D6))
+                  ? _Chip(label: t('PARTNER'), color: const Color(0xFF2475D6))
                   : p.calledLast && p.hand.length == 1
-                  ? const _Chip(label: 'LAST', color: Color(0xFFF4B620))
+                  ? _Chip(label: t('LAST'), color: const Color(0xFFF4B620))
                   : SizedBox(
                       width: 14.0 + shown * 7,
                       height: 22,
@@ -868,7 +886,7 @@ class _ThinkingBubbleState extends State<_ThinkingBubble>
   @override
   Widget build(BuildContext context) {
     return Semantics(
-      label: 'Thinking',
+      label: t('Thinking'),
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 5),
         decoration: BoxDecoration(
@@ -1066,17 +1084,17 @@ class _DrawPile extends StatelessWidget {
     final top = game.drawPile.isEmpty ? null : game.drawPile.last;
     final pending = game.pendingDraw;
     final label = intro == IntroStep.shuffle
-        ? 'Shuffling'
+        ? t('Shuffling')
         : intro == IntroStep.deal
-        ? 'Dealing'
+        ? t('Dealing')
         : !enabled
-        ? '${game.drawPile.length} left'
+        ? t('{n} left', {'n': game.drawPile.length})
         : pending > 0
-        ? 'Take +$pending'
-        : 'Draw';
+        ? t('Take +{n}', {'n': pending})
+        : t('Draw');
     return Semantics(
       button: true,
-      label: 'Draw pile',
+      label: t('Draw pile'),
       child: GestureDetector(
         onTap: enabled ? onTap : null,
         child: Column(
@@ -1454,8 +1472,10 @@ class _StatusBar extends StatelessWidget {
         (combo.isEmpty
             ? _status(c)
             : combo.length == 1
-            ? 'Tap more ${g.face(combo.first).symbol}s to add'
-            : 'Last card sets the color');
+            ? t('Tap more {card} cards to add', {
+                'card': t(g.face(combo.first).symbol),
+              })
+            : t('Last card sets the color'));
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 0),
       child: Column(
@@ -1490,13 +1510,13 @@ class _StatusBar extends StatelessWidget {
                 ),
                 if (combo.isNotEmpty) ...[
                   IconButton(
-                    tooltip: 'Cancel combo',
+                    tooltip: t('Cancel combo'),
                     onPressed: onCancelCombo,
                     icon: const Icon(Icons.close_rounded),
                     color: Palette.muted,
                   ),
                   _ActionButton(
-                    label: 'Play ${combo.length}',
+                    label: t('Play {n}', {'n': combo.length}),
                     color: Palette.brand,
                     onTap: onPlayCombo,
                   ),
@@ -1504,7 +1524,7 @@ class _StatusBar extends StatelessWidget {
                 ],
                 if (myTurn && g.canChallenge) ...[
                   _ActionButton(
-                    label: 'Challenge',
+                    label: t('Challenge'),
                     color: const Color(0xFF2EA358),
                     onTap: c.challenge,
                   ),
@@ -1512,7 +1532,7 @@ class _StatusBar extends StatelessWidget {
                 ],
                 if (myTurn && g.phase == Phase.afterDraw) ...[
                   _ActionButton(
-                    label: 'Keep',
+                    label: t('Keep'),
                     color: const Color(0xFF3A3F4A),
                     onTap: c.pass,
                   ),
@@ -1540,35 +1560,44 @@ class _StatusBar extends StatelessWidget {
   String _status(GameController c) {
     final g = c.game;
     final dealer = g.players[g.dealer];
-    final dealerName = dealer.isHuman ? 'You' : dealer.name;
     // Online, everyone watches the same opening; it cannot be skipped.
-    final skip = c.online ? '' : ' · tap to skip';
+    final skip = c.online ? '' : t(' · tap to skip');
+    final args = {'a': dealer.name, 'n': g.rules.handSize};
     switch (c.intro) {
       case IntroStep.shuffle:
-        return '$dealerName ${dealer.isHuman ? 'shuffle' : 'shuffles'} the deck…$skip';
+        return (dealer.isHuman
+                ? t('You shuffle the deck…')
+                : t('{a} shuffles the deck…', args)) +
+            skip;
       case IntroStep.deal:
-        return '$dealerName ${dealer.isHuman ? 'deal' : 'deals'} ${g.rules.handSize} cards each…$skip';
+        return (dealer.isHuman
+                ? t('You deal {n} cards each…', args)
+                : t('{a} deals {n} cards each…', args)) +
+            skip;
       case IntroStep.flip:
-        return 'First card: ${g.topFace.label}';
+        return t('First card: {card}', {'card': faceLabel(g.topFace)});
       case IntroStep.order:
-        return 'Get ready…';
+        return t('Get ready…');
       case null:
         break;
     }
-    if (c.humanOut) return 'You are out of this match';
+    if (c.humanOut) return t('You are out of this match');
     if (g.isRoundOver) return '';
     if (!c.isMyTurn) {
       final jump = g.jumpInCards(GameController.human).isNotEmpty;
-      if (jump) return 'Jump in now!';
-      return "${g.currentPlayer.name}'s turn…";
+      if (jump) return t('Jump in now!');
+      return t("{a}'s turn…", {'a': g.currentPlayer.name});
     }
-    if (g.canChallenge) return 'Wild +4! Challenge, or take +${g.pendingDraw}';
-    if (g.pendingDraw > 0) return 'Stack a draw card or take +${g.pendingDraw}';
-    if (g.phase == Phase.afterDraw) return 'Play the card you drew or keep it';
+    final n = {'n': g.pendingDraw};
+    if (g.canChallenge) return t('Wild +4! Challenge, or take +{n}', n);
+    if (g.pendingDraw > 0) return t('Stack a draw card or take +{n}', n);
+    if (g.phase == Phase.afterDraw) {
+      return t('Play the card you drew or keep it');
+    }
     if (g.playableCards(GameController.human).isEmpty) {
-      return 'No match — draw a card';
+      return t('No match — draw a card');
     }
-    return 'Your turn';
+    return t('Your turn');
   }
 }
 
@@ -1701,7 +1730,7 @@ class _LastButtonState extends State<_LastButton>
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
             child: Text(
-              'LAST CARD',
+              t('LAST CARD'),
               style: font(
                 14,
                 weight: 700,
@@ -1843,11 +1872,11 @@ class _Hand extends StatelessWidget {
       return const _CardLook(dim: true);
     }
     if (jumps.contains(card.id)) {
-      return const _CardLook(
+      return _CardLook(
         up: true,
         glow: gold,
-        badge: 'JUMP',
-        badgeColor: Color(0xFFE09A00),
+        badge: t('JUMP'),
+        badgeColor: const Color(0xFFE09A00),
       );
     }
     if (!myTurn) return const _CardLook();
@@ -1942,7 +1971,7 @@ class _ColorPicker extends StatelessWidget {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Pick a color', style: font(22, weight: 650)),
+            Text(t('Pick a color'), style: font(22, weight: 650)),
             const SizedBox(height: 16),
             GridView.count(
               shrinkWrap: true,
@@ -2026,22 +2055,29 @@ class _ResultsState extends State<_Results> {
 
     final String title;
     if (c.humanOut && !g.isMatchOver) {
-      title = 'You\'re out';
+      title = t("You're out");
     } else if (g.isMatchOver) {
+      final a = {'a': g.matchWinner.name};
       title = iWon
-          ? (rules.teams ? 'Your team wins!' : 'You win!')
-          : '${g.matchWinner.name} ${rules.teams ? '& partner win' : 'wins'}';
+          ? (rules.teams ? t('Your team wins!') : t('You win!'))
+          : rules.teams
+          ? t('{a} & partner win', a)
+          : t('{a} wins', a);
     } else {
       title = iWon
-          ? 'Round won!'
-          : '${g.players[winnerSeat!].name} won the round';
+          ? t('Round won!')
+          : t('{a} won the round', {'a': g.players[winnerSeat!].name});
     }
     final subtitle = switch (rules.format) {
-      MatchFormat.points when g.lastRound != null =>
-        '+${g.lastRound!.points} points · first to ${rules.targetScore}',
-      MatchFormat.elimination when g.lastRound?.knockedOut != null =>
-        '${g.players[g.lastRound!.knockedOut!].name} was eliminated',
-      _ => matchOver ? 'Match over' : 'Round ${g.round}',
+      MatchFormat.points when g.lastRound != null => t(
+        '+{n} points · first to {target}',
+        {'n': g.lastRound!.points, 'target': rules.targetScore},
+      ),
+      MatchFormat.elimination when g.lastRound?.knockedOut != null => t(
+        '{a} was eliminated',
+        {'a': g.players[g.lastRound!.knockedOut!].name},
+      ),
+      _ => matchOver ? t('Match over') : t('Round {n}', {'n': g.round}),
     };
 
     final rows = List.of(g.players)
@@ -2096,30 +2132,30 @@ class _ResultsState extends State<_Results> {
                     // Online the server moves on; the lobby starts matches.
                     if (!matchOver)
                       Text(
-                        'Next round starts in a moment…',
+                        t('Next round starts in a moment…'),
                         textAlign: TextAlign.center,
                         style: font(14, weight: 600, color: Palette.muted),
                       )
                     else
                       FilledButton(
                         onPressed: widget.onMenu,
-                        child: const Text('Back to lobby'),
+                        child: Text(t('Back to lobby')),
                       ),
                   ] else ...[
                     if (!matchOver)
                       FilledButton(
                         onPressed: c.nextRound,
-                        child: const Text('Next round'),
+                        child: Text(t('Next round')),
                       )
                     else
                       FilledButton(
                         onPressed: c.restart,
-                        child: const Text('Play again'),
+                        child: Text(t('Play again')),
                       ),
                     const SizedBox(height: 10),
                     OutlinedButton(
                       onPressed: widget.onMenu,
-                      child: const Text('Menu'),
+                      child: Text(t('Menu')),
                     ),
                   ],
                 ],
@@ -2143,9 +2179,11 @@ class _ResultRow extends StatelessWidget {
     final p = player;
     final rules = game.rules;
     final right = switch (rules.format) {
-      MatchFormat.points => '${p.score} pts',
-      MatchFormat.elimination => p.out ? 'Out' : '${p.score} won',
-      MatchFormat.single => p.out ? 'Out' : '${p.hand.length} left',
+      MatchFormat.points => t('{n} pts', {'n': p.score}),
+      MatchFormat.elimination =>
+        p.out ? t('Out') : t('{n} won', {'n': p.score}),
+      MatchFormat.single =>
+        p.out ? t('Out') : t('{n} left', {'n': p.hand.length}),
     };
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: 5),
@@ -2156,7 +2194,7 @@ class _ResultRow extends StatelessWidget {
           Expanded(
             child: Text(
               rules.teams
-                  ? '${p.name} · ${p.team == 0 ? 'Your team' : 'Rivals'}'
+                  ? '${p.name} · ${p.team == 0 ? t('Your team') : t('Rivals')}'
                   : p.name,
               style: font(15, weight: p.isHuman ? 650 : 500),
             ),
@@ -2165,7 +2203,7 @@ class _ResultRow extends StatelessWidget {
             Padding(
               padding: const EdgeInsets.only(right: 12),
               child: Text(
-                '${p.hand.length} left',
+                t('{n} left', {'n': p.hand.length}),
                 style: font(13, color: Palette.muted),
               ),
             ),
@@ -2420,13 +2458,19 @@ class _TurnOrderPanel extends StatelessWidget {
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   Text(
-                    first.isHuman ? 'You start!' : '${first.name} starts',
+                    first.isHuman
+                        ? t('You start!')
+                        : t('{a} starts', {'a': first.name}),
                     style: font(26, weight: 700),
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    '${g.players[g.dealer].isHuman ? 'You' : g.players[g.dealer].name} dealt · '
-                    'first card ${g.topFace.label}',
+                    t('{a} dealt · first card {card}', {
+                      'a': g.players[g.dealer].isHuman
+                          ? t('You')
+                          : g.players[g.dealer].name,
+                      'card': faceLabel(g.topFace),
+                    }),
                     textAlign: TextAlign.center,
                     style: font(13.5, color: Palette.muted),
                   ),
@@ -2453,8 +2497,8 @@ class _TurnOrderPanel extends StatelessWidget {
                   const SizedBox(height: 16),
                   Text(
                     g.direction == 1
-                        ? 'Play goes clockwise'
-                        : 'Play goes counter-clockwise',
+                        ? t('Play goes clockwise')
+                        : t('Play goes counter-clockwise'),
                     style: font(13, weight: 550, color: Palette.muted),
                   ),
                 ],

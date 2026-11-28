@@ -5,13 +5,14 @@ import 'package:material_ui/material_ui.dart';
 
 import 'package:last_card_core/cards.dart';
 import 'package:last_card_core/hold_card.dart';
+import 'package:last_card_core/i18n.dart';
 import 'package:last_card_core/modes.dart';
 import 'package:last_card_core/party_tables.dart';
 import 'package:last_card_core/rules.dart';
 
+import '../online/session.dart';
 import 'game_controller.dart' show TableBanner, botNames;
 import 'game_screen.dart' show TableBannerView;
-import '../online/session.dart';
 import 'guide_screen.dart';
 import 'party_widgets.dart';
 import 'playing_card.dart';
@@ -44,7 +45,7 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
   static const me = 0;
   static const gold = Color(0xFFF4B620);
   final _rng = Random();
-  late HoldCardTable t;
+  late HoldCardTable table;
   TableBanner? _banner;
   int _seenNote = 0;
   bool _endPlayed = false;
@@ -54,15 +55,15 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
   int _callForPlay = -1;
 
   bool get online => widget.table != null;
-  HoldCardGame get g => t.game;
+  HoldCardGame get g => table.game;
 
   @override
   void initState() {
     super.initState();
     if (online) {
-      t = widget.table!;
-      _seenNote = t.notes.isEmpty ? 0 : t.notes.last.id;
-      t.onChange = _onChange;
+      table = widget.table!;
+      _seenNote = table.notes.isEmpty ? 0 : table.notes.last.id;
+      table.onChange = _onChange;
     } else {
       _newGame();
     }
@@ -71,18 +72,18 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
   @override
   void dispose() {
     if (online) {
-      t.onChange = null;
+      table.onChange = null;
     } else {
-      t.dispose();
+      table.dispose();
     }
     super.dispose();
   }
 
   void _newGame() {
-    t = HoldCardTable(
+    table = HoldCardTable(
       game: HoldCardGame(
         players: [
-          HoldPlayer(me, 'You', isHuman: true),
+          HoldPlayer(me, t('You'), isHuman: true),
           for (var i = 1; i < widget.players; i++)
             HoldPlayer(i, botNames[i - 1]),
         ],
@@ -97,29 +98,34 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
     _endPlayed = false;
     _banner = null;
     _call = null;
-    t.start();
+    table.start();
   }
 
   /// Turns new notes into banners and sounds, then repaints.
   void _onChange() {
     if (!mounted) return;
-    for (final n in t.notes) {
+    for (final n in table.notes) {
       if (n.id <= _seenNote) continue;
       if (n.forSeat != null && n.forSeat != me) continue;
-      if (n.title.isNotEmpty) {
+      if (!n.title.isEmpty) {
+        // Each reader sees names, "you" and the language from their seat.
+        final who = Seating(
+          name: (s) => g.players[s].name,
+          you: (s) => s == me,
+        );
         _banner = TableBanner(
           n.id,
-          n.title,
-          subtitle: n.subtitle,
+          render(n.title, who),
+          subtitle: n.subtitle.isEmpty ? null : render(n.subtitle, who),
           color: n.alert ? Palette.brand : null,
         );
       }
       if (n.sound != null) playSfxNamed(n.sound!);
     }
-    if (t.notes.isNotEmpty) _seenNote = t.notes.last.id;
+    if (table.notes.isNotEmpty) _seenNote = table.notes.last.id;
     // A new turn clears the human's previous call.
-    if (_callForPlay != t.playId) _call = null;
-    if (t.isOver && !_endPlayed) {
+    if (_callForPlay != table.playId) _call = null;
+    if (table.isOver && !_endPlayed) {
       _endPlayed = true;
       playSfx(g.winners.contains(me) ? Sfx.win : Sfx.lose);
     }
@@ -127,7 +133,7 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
   }
 
   Future<void> _menu() async {
-    if (!online) t.pause();
+    if (!online) table.pause();
     final action = await showPartyMenu(context, widget.mode, online: online);
     if (!mounted) return;
     switch (action) {
@@ -136,14 +142,14 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
           context,
           MaterialPageRoute(builder: (_) => GuideScreen(mode: widget.mode)),
         );
-        if (mounted && !online) t.unpause();
+        if (mounted && !online) table.unpause();
       case 'restart':
-        t.dispose();
+        table.dispose();
         setState(_newGame);
       case 'quit':
         Navigator.pop(context);
       default:
-        if (!online) t.unpause();
+        if (!online) table.unpause();
     }
   }
 
@@ -154,7 +160,7 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
     playSfx(Sfx.tick);
     setState(() {
       _call = call;
-      _callForPlay = t.playId;
+      _callForPlay = table.playId;
     });
   }
 
@@ -163,12 +169,12 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
     if (call == null || g.current != me || g.phase != HoldPhase.call) return;
     HapticFeedback.lightImpact();
     playSfx(Sfx.card);
-    t.place(me, call, index);
+    table.place(me, call, index);
   }
 
   void _press(int seat) {
     HapticFeedback.heavyImpact();
-    t.press(seat);
+    table.press(seat);
   }
 
   // ------------------------------------------------------------------- UI
@@ -180,19 +186,25 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
     switch (g.phase) {
       case HoldPhase.race:
         final i = g.presses.indexOf(me);
-        return i >= 0 ? 'You pressed #${i + 1}' : 'MATCH! Press HOLD!';
+        return i >= 0
+            ? t('You pressed #{n}', {'n': i + 1})
+            : t('MATCH! Press HOLD!');
       case HoldPhase.over:
         return '';
       case HoldPhase.call:
         if (_myTurn) {
           return _call == null
-              ? '1 · Call a ${g.guess.label.toLowerCase()}'
-              : '2 · Pick one of your cards (called ${_call!.label})';
+              ? (g.guess == HoldGuess.number
+                    ? t('1 · Call a number')
+                    : t('1 · Call a color'))
+              : t('2 · Pick one of your cards (called {call})', {
+                  'call': _call!.label,
+                });
         }
         if (last != null && !last.match) {
-          return 'No match — the box keeps ${g.box.length}';
+          return t('No match — the box keeps {n}', {'n': g.box.length});
         }
-        return "${g.players[g.current].name}'s turn…";
+        return t("{a}'s turn…", {'a': g.players[g.current].name});
     }
   }
 
@@ -202,7 +214,7 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
     return PartyScaffold(
       mode: widget.mode,
       subtitle:
-          'Guess the ${g.guess.label.toLowerCase()} · '
+          '${g.guess == HoldGuess.number ? t('Guess the number') : t('Guess the color')} · '
           '${online ? OnlineSession.instance.statusLabel : widget.difficulty.label}',
       accent: race ? gold : Palette.brand,
       onMenu: _menu,
@@ -304,8 +316,11 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
                     fit: BoxFit.scaleDown,
                     child: Text(
                       last == null
-                          ? 'No card yet'
-                          : '${g.players[last.seat].name} called ${last.call.label}',
+                          ? t('No card yet')
+                          : t('{a} called {call}', {
+                              'a': g.players[last.seat].name,
+                              'call': last.call.label,
+                            }),
                       style: font(14, weight: 650, color: Palette.muted),
                     ),
                   ),
@@ -313,7 +328,7 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
                   last == null
                       ? SizedBox(width: 84, height: 84 * cardAspect)
                       : TweenAnimationBuilder<double>(
-                          key: ValueKey(t.playId),
+                          key: ValueKey(table.playId),
                           tween: Tween(begin: 0, end: 1),
                           duration: const Duration(milliseconds: 460),
                           curve: Curves.easeOutBack,
@@ -336,7 +351,7 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
                     child: last == null
                         ? null
                         : PartyChip(
-                            last.match ? 'MATCH' : 'NO MATCH',
+                            last.match ? t('MATCH') : t('NO MATCH'),
                             color: last.match
                                 ? const Color(0xFFE09A00)
                                 : const Color(0xFF3A3F4A),
@@ -360,7 +375,7 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Text('Box', style: font(14, weight: 650, color: Palette.muted)),
+        Text(t('Box'), style: font(14, weight: 650, color: Palette.muted)),
         const SizedBox(height: 8),
         SizedBox(
           width: 84,
@@ -395,7 +410,8 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
         FittedBox(
           fit: BoxFit.scaleDown,
           child: Text(
-            '$n card${n == 1 ? '' : 's'} · stock ${g.stock.length}',
+            '${tn(n, '1 card', '{n} cards')} · '
+            '${t('stock {n}', {'n': g.stock.length})}',
             style: font(13, weight: 600, color: Palette.muted),
           ),
         ),
@@ -477,7 +493,7 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
                 const Icon(Icons.back_hand_rounded),
                 const SizedBox(width: 10),
                 Text(
-                  'HOLD CARD',
+                  t('HOLD CARD'),
                   style: font(
                     20,
                     weight: 700,
@@ -550,27 +566,29 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
     final won = winners.contains(me);
     final names = winners.map((s) => g.players[s].name).toList();
     final title = won
-        ? (winners.length > 1 ? 'You tie for the win!' : 'You win!')
-        : '${names.join(' & ')} ${names.length > 1 ? 'win' : 'wins'}';
+        ? (winners.length > 1 ? t('You tie for the win!') : t('You win!'))
+        : names.length > 1
+        ? t('{a} win', {'a': names.join(' & ')})
+        : t('{a} wins', {'a': names.first});
     final rows = List.of(g.players)
       ..sort((a, b) => a.hand.length.compareTo(b.hand.length));
     return PartyResults(
       title: title,
-      subtitle: 'First to empty their hand',
+      subtitle: t('First to empty their hand'),
       won: won,
       rows: [
         for (final p in rows)
           ResultRow(
             p.seat,
             p.name,
-            '${p.hand.length} left',
+            t('{n} left', {'n': p.hand.length}),
             winner: winners.contains(p.seat),
           ),
       ],
       onAgain: online
           ? null
           : () {
-              t.dispose();
+              table.dispose();
               setState(_newGame);
             },
       onMenu: () => Navigator.pop(context),

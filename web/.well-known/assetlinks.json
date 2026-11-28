@@ -1,0 +1,12 @@
+[
+  {
+    "relation": ["delegate_permission/common.handle_all_urls"],
+    "target": {
+      "namespace": "android_app",
+      "package_name": "com.freack21.uno_mobile",
+      "sha256_cert_fingerprints": [
+        "55:C3:64:B4:65:27:81:E6:0B:20:35:17:73:1C:DD:3C:9F:90:AA:05:A7:BE:CE:46:17:C9:F5:96:D9:1A:4A:39"
+      ]
+    }
+  }
+]

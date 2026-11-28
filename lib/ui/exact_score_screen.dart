@@ -6,13 +6,14 @@ import 'package:material_ui/material_ui.dart';
 
 import 'package:last_card_core/cards.dart';
 import 'package:last_card_core/exact_score.dart';
+import 'package:last_card_core/i18n.dart';
 import 'package:last_card_core/modes.dart';
 import 'package:last_card_core/party_tables.dart';
 import 'package:last_card_core/rules.dart';
 
+import '../online/session.dart';
 import 'game_controller.dart' show TableBanner, botNames;
 import 'game_screen.dart' show TableBannerView;
-import '../online/session.dart';
 import 'guide_screen.dart';
 import 'party_widgets.dart';
 import 'playing_card.dart';
@@ -47,22 +48,22 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
   static const me = 0;
   static const tickMs = 110;
   final _rng = Random();
-  late ExactScoreTable t;
+  late ExactScoreTable table;
   TableBanner? _banner;
   int _seenNote = 0;
   bool _endPlayed = false;
   final _tickTimers = <Timer>[];
 
   bool get online => widget.table != null;
-  ExactScoreGame get g => t.game;
+  ExactScoreGame get g => table.game;
 
   @override
   void initState() {
     super.initState();
     if (online) {
-      t = widget.table!;
-      _seenNote = t.notes.isEmpty ? 0 : t.notes.last.id;
-      t.onChange = _onChange;
+      table = widget.table!;
+      _seenNote = table.notes.isEmpty ? 0 : table.notes.last.id;
+      table.onChange = _onChange;
     } else {
       _newGame();
     }
@@ -74,19 +75,19 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
       x.cancel();
     }
     if (online) {
-      t.onChange = null;
+      table.onChange = null;
     } else {
-      t.dispose();
+      table.dispose();
     }
     super.dispose();
   }
 
   void _newGame() {
     final target = widget.target ?? 20 + _rng.nextInt(7) * 5;
-    t = ExactScoreTable(
+    table = ExactScoreTable(
       game: ExactScoreGame(
         players: [
-          ScorePlayer(me, 'You', isHuman: true),
+          ScorePlayer(me, t('You'), isHuman: true),
           for (var i = 1; i < widget.players; i++)
             ScorePlayer(i, botNames[i - 1]),
         ],
@@ -100,20 +101,25 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
     _seenNote = 0;
     _endPlayed = false;
     _banner = null;
-    t.start();
+    table.start();
   }
 
   /// Turns new notes into banners and sounds, then repaints.
   void _onChange() {
     if (!mounted) return;
-    for (final n in t.notes) {
+    for (final n in table.notes) {
       if (n.id <= _seenNote) continue;
       if (n.forSeat != null && n.forSeat != me) continue;
-      if (n.title.isNotEmpty) {
+      if (!n.title.isEmpty) {
+        // Each reader sees names, "you" and the language from their seat.
+        final who = Seating(
+          name: (s) => g.players[s].name,
+          you: (s) => s == me,
+        );
         _banner = TableBanner(
           n.id,
-          n.title,
-          subtitle: n.subtitle,
+          render(n.title, who),
+          subtitle: n.subtitle.isEmpty ? null : render(n.subtitle, who),
           color: n.alert ? Palette.brand : null,
         );
       }
@@ -127,8 +133,8 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
         );
       }
     }
-    if (t.notes.isNotEmpty) _seenNote = t.notes.last.id;
-    if (t.isOver && !_endPlayed) {
+    if (table.notes.isNotEmpty) _seenNote = table.notes.last.id;
+    if (table.isOver && !_endPlayed) {
       _endPlayed = true;
       playSfx(g.winner == me ? Sfx.win : Sfx.lose);
     }
@@ -136,7 +142,7 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
   }
 
   Future<void> _menu() async {
-    if (!online) t.pause();
+    if (!online) table.pause();
     final action = await showPartyMenu(context, widget.mode, online: online);
     if (!mounted) return;
     switch (action) {
@@ -145,27 +151,27 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
           context,
           MaterialPageRoute(builder: (_) => GuideScreen(mode: widget.mode)),
         );
-        if (mounted && !online) t.unpause();
+        if (mounted && !online) table.unpause();
       case 'restart':
-        t.dispose();
+        table.dispose();
         setState(_newGame);
       case 'quit':
         Navigator.pop(context);
       default:
-        if (!online) t.unpause();
+        if (!online) table.unpause();
     }
   }
 
   void _humanDraw() {
-    if (g.current != me || g.phase != ScorePhase.draw || t.stage != null) {
+    if (g.current != me || g.phase != ScorePhase.draw || table.stage != null) {
       return;
     }
     HapticFeedback.lightImpact();
-    t.draw(me);
+    table.draw(me);
   }
 
-  void _wild(int v) => t.chooseWild(me, v);
-  void _victim(int s) => t.chooseVictim(me, s);
+  void _wild(int v) => table.chooseWild(me, v);
+  void _victim(int s) => table.chooseVictim(me, s);
 
   // ------------------------------------------------------------------- UI
 
@@ -175,9 +181,9 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
     return PartyScaffold(
       mode: widget.mode,
       subtitle:
-          'Target ${g.target} · '
+          '${t('Target {n}', {'n': g.target})} · '
           '${online ? OnlineSession.instance.statusLabel : widget.difficulty.label}',
-      accent: t.stage == ExactStage.bust
+      accent: table.stage == ExactStage.bust
           ? Palette.brand
           : myTurn
           ? const Color(0xFF2475D6)
@@ -282,7 +288,7 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
                   border: Border.all(color: Palette.line),
                 ),
                 child: Text(
-                  'TARGET ${g.target}',
+                  t('TARGET {n}', {'n': g.target}),
                   style: font(16, weight: 700).copyWith(letterSpacing: 1),
                 ),
               ),
@@ -300,7 +306,9 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
                         ),
                         const SizedBox(height: 8),
                         Text(
-                          canDraw ? 'Tap to draw' : '${g.drawPile.length} left',
+                          canDraw
+                              ? t('Tap to draw')
+                              : t('{n} left', {'n': g.drawPile.length}),
                           style: font(
                             14,
                             weight: 650,
@@ -319,18 +327,18 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
                         SizedBox(
                           height: 92 * cardAspect,
                           child: Center(
-                            child: drawn != null && t.stage != null
+                            child: drawn != null && table.stage != null
                                 ? _Spotlight(
-                                    key: ValueKey(t.turnId),
+                                    key: ValueKey(table.turnId),
                                     face: drawn.light,
-                                    stage: t.stage!,
+                                    stage: table.stage!,
                                   )
-                                : t.last != null
+                                : table.last != null
                                 ? Opacity(
                                     opacity: 0.4,
                                     child: PlayingCard(
                                       width: 80,
-                                      face: t.last!.light,
+                                      face: table.last!.light,
                                     ),
                                   )
                                 : const SizedBox(),
@@ -340,9 +348,11 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
                         Text(
                           drawn != null
                               ? (g.current == me
-                                    ? 'Your card'
-                                    : '${g.players[g.current].name} drew')
-                              : 'Last card',
+                                    ? t('Your card')
+                                    : t('{a} drew', {
+                                        'a': g.players[g.current].name,
+                                      }))
+                              : t('Last card'),
                           style: font(14, weight: 650, color: Palette.muted),
                         ),
                       ],
@@ -368,25 +378,27 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
     final p = g.players[g.current];
     if (g.phase == ScorePhase.over) {
       text = '';
-    } else if (t.stage == ExactStage.choose) {
+    } else if (table.stage == ExactStage.choose) {
       final f = g.drawnFace!;
       if (f.kind == CardKind.draw) {
-        text = 'Take 2 points from…';
+        text = t('Take 2 points from…');
         for (final s in g.victims(me)) {
           choices.add(_chip('victim-$s', g.players[s].name, () => _victim(s)));
         }
       } else {
-        text = 'Wild! Add any value up to ${min(9, g.remaining(me))}';
+        text = t('Wild! Add any value up to {n}', {
+          'n': min(9, g.remaining(me)),
+        });
         for (final v in g.wildValues(me)) {
           choices.add(_chip('wild-$v', '+$v', () => _wild(v)));
         }
       }
-    } else if (t.stage != null) {
-      text = p.isHuman ? 'Drawing…' : '${p.name} draws…';
+    } else if (table.stage != null) {
+      text = p.isHuman ? t('Drawing…') : t('{a} draws…', {'a': p.name});
     } else if (g.current == me) {
-      text = 'Your turn — tap the deck to draw';
+      text = t('Your turn — tap the deck to draw');
     } else {
-      text = "${p.name}'s turn…";
+      text = t("{a}'s turn…", {'a': p.name});
     }
     return Padding(
       padding: const EdgeInsets.fromLTRB(16, 4, 16, 8),
@@ -431,7 +443,7 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
   Widget _track() {
     final p = g.players[me];
     const perRow = 10;
-    final from = t.fillFrom[me] ?? p.score;
+    final from = table.fillFrom[me] ?? p.score;
     return Container(
       margin: const EdgeInsets.fromLTRB(12, 0, 12, 10),
       padding: const EdgeInsets.fromLTRB(14, 12, 14, 12),
@@ -449,7 +461,7 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
             children: [
               Flexible(
                 child: Text(
-                  'Your track',
+                  t('Your track'),
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: font(15, weight: 650),
@@ -459,7 +471,7 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
               Text('${p.score} / ${g.target}', style: font(15, weight: 700)),
               const SizedBox(width: 8),
               Text(
-                'need ${g.remaining(me)}',
+                t('need {n}', {'n': g.remaining(me)}),
                 style: font(13, color: Palette.muted),
               ),
             ],
@@ -477,7 +489,7 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
                           : i >= from && i < p.score
                           // Newly scored: cross off one after another.
                           ? _Tick(
-                              key: ValueKey('${t.turnId}-$i'),
+                              key: ValueKey('${table.turnId}-$i'),
                               filled: true,
                               delay: (i - from) * tickMs + 120,
                             )
@@ -496,8 +508,8 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
     final won = w == me;
     final rows = List.of(g.players)..sort((a, b) => b.score.compareTo(a.score));
     return PartyResults(
-      title: won ? 'You win!' : '${g.players[w].name} wins',
-      subtitle: 'First to exactly ${g.target}',
+      title: won ? t('You win!') : t('{a} wins', {'a': g.players[w].name}),
+      subtitle: t('First to exactly {n}', {'n': g.target}),
       won: won,
       rows: [
         for (final p in rows)
@@ -511,7 +523,7 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
       onAgain: online
           ? null
           : () {
-              t.dispose();
+              table.dispose();
               setState(_newGame);
             },
       onMenu: () => Navigator.pop(context),

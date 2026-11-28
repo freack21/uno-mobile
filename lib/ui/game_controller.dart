@@ -6,6 +6,7 @@ import 'package:material_ui/material_ui.dart';
 import 'package:last_card_core/bot.dart';
 import 'package:last_card_core/cards.dart';
 import 'package:last_card_core/game.dart';
+import 'package:last_card_core/i18n.dart';
 import 'package:last_card_core/modes.dart';
 import 'package:last_card_core/protocol.dart';
 import 'package:last_card_core/rules.dart';
@@ -135,7 +136,7 @@ class GameController extends ChangeNotifier {
   void _newGame() {
     _cancelAll();
     final players = [
-      Player(human, 'You', isHuman: true),
+      Player(human, t('You'), isHuman: true),
       for (var i = 1; i < playerCount; i++) Player(i, botNames[i - 1]),
     ];
     _bots = [
@@ -328,7 +329,7 @@ class GameController extends ChangeNotifier {
   }
 
   String? _human(void Function() action, Map<String, Object?> remote) {
-    if (inIntro) return 'Wait for the deal to finish';
+    if (inIntro) return t('Wait for the deal to finish');
     if (online) {
       send!(remote);
       return null;
@@ -337,7 +338,7 @@ class GameController extends ChangeNotifier {
       action();
     } on StateError {
       notifyListeners();
-      return 'Too late — the table moved on.';
+      return t('Too late — the table moved on.');
     }
     _afterChange();
     return null;
@@ -512,66 +513,72 @@ class GameController extends ChangeNotifier {
   }
 
   TableBanner? _bannerFor(GameEvent e) {
-    final who = e.seat == null ? '' : game.players[e.seat!].name;
     final you = e.seat == human;
+    final who = e.seat == null
+        ? ''
+        : you
+        ? t('You')
+        : game.players[e.seat!].name;
+    // The event as a sentence, in the reader's language and from their seat.
+    final text = render(e.msg, game.seating);
     return switch (e.type) {
       EventType.play when e.card != null && game.face(e.card!).isWild =>
         TableBanner(
           e.id,
-          game.activeColor.label.toUpperCase(),
-          subtitle: '$who picked a color',
+          colorLabel(game.activeColor).toUpperCase(),
+          subtitle: you
+              ? t('You picked a color')
+              : t('{a} picked a color', {'a': who}),
           color: Palette.of(game.activeColor),
         ),
-      EventType.jumpIn => TableBanner(e.id, 'JUMP IN!', subtitle: who),
+      EventType.jumpIn => TableBanner(e.id, t('JUMP IN!'), subtitle: who),
       EventType.penalty => TableBanner(
         e.id,
-        e.count == null ? 'DRAW' : '+${e.count}',
-        subtitle: you ? 'You draw' : '$who draws',
+        e.count == null ? t('DRAW') : '+${e.count}',
+        subtitle: you ? t('You draw') : t('{a} draws', {'a': who}),
         color: you ? Palette.brand : null,
       ),
-      EventType.skip => TableBanner(e.id, 'SKIP', subtitle: e.text),
-      EventType.reverse => TableBanner(e.id, 'REVERSE'),
-      EventType.swap => TableBanner(e.id, 'SWAP!', subtitle: e.text),
-      EventType.rotate => TableBanner(e.id, 'PASS IT ON', subtitle: e.text),
+      EventType.skip => TableBanner(e.id, t('SKIP'), subtitle: text),
+      EventType.reverse => TableBanner(e.id, t('REVERSE')),
+      EventType.swap => TableBanner(e.id, t('SWAP!'), subtitle: text),
+      EventType.rotate => TableBanner(e.id, t('PASS IT ON'), subtitle: text),
       EventType.flip => TableBanner(
         e.id,
-        'FLIP!',
-        subtitle: e.text,
+        t('FLIP!'),
+        subtitle: text,
         color: game.side == Side.dark ? Palette.of(CardColor.purple) : null,
       ),
       EventType.discardAll => TableBanner(
         e.id,
-        'DISCARD ALL',
-        subtitle: e.text,
+        t('DISCARD ALL'),
+        subtitle: text,
       ),
       EventType.lastCall => TableBanner(
         e.id,
-        'LAST CARD!',
+        t('LAST CARD!'),
         subtitle: who,
         color: Palette.brand,
       ),
       EventType.falseCall => TableBanner(
         e.id,
-        'WRONG CALL',
-        subtitle: you
-            ? 'Nobody is on one card · you draw 2'
-            : '$who called for nothing · draws 2',
+        t('WRONG CALL'),
+        subtitle: text,
         color: you ? Palette.brand : null,
       ),
       EventType.caught => TableBanner(
         e.id,
-        'CAUGHT!',
-        subtitle: e.text,
+        t('CAUGHT!'),
+        subtitle: text,
         color: Palette.brand,
       ),
-      EventType.challenge => TableBanner(e.id, 'CHALLENGE', subtitle: e.text),
+      EventType.challenge => TableBanner(e.id, t('CHALLENGE'), subtitle: text),
       EventType.knockout => TableBanner(
         e.id,
-        'OUT!',
-        subtitle: e.text,
+        t('OUT!'),
+        subtitle: text,
         color: Palette.brand,
       ),
-      EventType.timeout => TableBanner(e.id, 'TIME!', subtitle: e.text),
+      EventType.timeout => TableBanner(e.id, t('TIME!'), subtitle: text),
       _ => null,
     };
   }

@@ -3,6 +3,7 @@ import 'dart:math';
 
 import 'package:material_ui/material_ui.dart';
 
+import 'package:last_card_core/i18n.dart';
 import 'package:last_card_core/modes.dart';
 
 import 'guide_screen.dart';
@@ -213,7 +214,7 @@ class PartyScaffold extends StatelessWidget {
                   child: Row(
                     children: [
                       IconButton(
-                        tooltip: 'Menu',
+                        tooltip: t('Menu'),
                         onPressed: onMenu,
                         icon: const Icon(Icons.pause_rounded),
                       ),
@@ -229,7 +230,7 @@ class PartyScaffold extends StatelessWidget {
                         ),
                       ),
                       IconButton(
-                        tooltip: 'How to play',
+                        tooltip: t('How to play'),
                         onPressed: () => Navigator.push(
                           context,
                           MaterialPageRoute(
@@ -266,13 +267,13 @@ Future<String?> showPartyMenu(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text('Paused', style: font(24, weight: 700)),
+            Text(t('Paused'), style: font(24, weight: 700)),
             const SizedBox(height: 8),
             ValueListenableBuilder<bool>(
               valueListenable: soundOn,
               builder: (context, on, _) => SwitchListTile(
                 contentPadding: EdgeInsets.zero,
-                title: Text('Sound effects', style: font(16, weight: 600)),
+                title: Text(t('Sound effects'), style: font(16, weight: 600)),
                 secondary: Icon(
                   on ? Icons.volume_up_rounded : Icons.volume_off_rounded,
                 ),
@@ -283,27 +284,27 @@ Future<String?> showPartyMenu(
             const SizedBox(height: 8),
             FilledButton(
               onPressed: () => Navigator.pop(context),
-              child: const Text('Resume'),
+              child: Text(t('Resume')),
             ),
             const SizedBox(height: 10),
             OutlinedButton.icon(
               onPressed: () => Navigator.pop(context, 'guide'),
               icon: const Icon(Icons.menu_book_rounded),
-              label: Text('How to play ${mode.name}'),
+              label: Text(t('How to play {mode}', {'mode': mode.name})),
             ),
             if (!online) ...[
               const SizedBox(height: 10),
               OutlinedButton.icon(
                 onPressed: () => Navigator.pop(context, 'restart'),
                 icon: const Icon(Icons.refresh_rounded),
-                label: const Text('Restart'),
+                label: Text(t('Restart')),
               ),
             ],
             const SizedBox(height: 10),
             OutlinedButton.icon(
               onPressed: () => Navigator.pop(context, 'quit'),
               icon: const Icon(Icons.logout_rounded),
-              label: Text(online ? 'Back to lobby' : 'Quit to menu'),
+              label: Text(online ? t('Back to lobby') : t('Quit to menu')),
             ),
           ],
         ),
@@ -436,17 +437,17 @@ class _PartyResultsState extends State<PartyResults> {
                   if (widget.onAgain != null) ...[
                     FilledButton(
                       onPressed: widget.onAgain,
-                      child: const Text('Play again'),
+                      child: Text(t('Play again')),
                     ),
                     const SizedBox(height: 10),
                     OutlinedButton(
                       onPressed: widget.onMenu,
-                      child: const Text('Menu'),
+                      child: Text(t('Menu')),
                     ),
                   ] else
                     FilledButton(
                       onPressed: widget.onMenu,
-                      child: const Text('Back to lobby'),
+                      child: Text(t('Back to lobby')),
                     ),
                 ],
               ),

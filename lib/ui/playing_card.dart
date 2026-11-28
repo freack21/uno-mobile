@@ -3,6 +3,7 @@ import 'dart:math';
 import 'package:material_ui/material_ui.dart';
 
 import 'package:last_card_core/cards.dart';
+import 'package:last_card_core/i18n.dart';
 
 import 'theme.dart';
 
@@ -211,7 +212,7 @@ class _Back extends StatelessWidget {
             child: width < 44
                 ? null
                 : Text(
-                    'LAST\nCARD',
+                    t('LAST\nCARD'),
                     textAlign: TextAlign.center,
                     style: font(
                       width * 0.14,

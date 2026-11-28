@@ -1,9 +1,19 @@
+import 'dart:async';
+import 'dart:ui' show PlatformDispatcher;
+
+import 'package:app_links/app_links.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:material_ui/material_ui.dart';
 
+import 'package:last_card_core/i18n.dart';
+
 import 'online/browser.dart';
+import 'online/links.dart';
+import 'online/online_screens.dart';
 import 'ui/app_update.dart';
 import 'ui/home_screen.dart';
+import 'ui/lang_switch.dart';
 import 'ui/theme.dart';
 import 'ui/theme_switch.dart';
 import 'ui/update_toast.dart';
@@ -13,14 +23,14 @@ Future<void> main() async {
   await initStorage();
   SystemChrome.setPreferredOrientations([DeviceOrientation.portraitUp]);
   watchForUpdates();
-  // Invite links look like https://host/#join=ROOMID-1234.
-  final fragment = Uri.base.fragment;
-  runApp(
-    LastCardApp(
-      joinCode: fragment.startsWith('join=') ? fragment.substring(5) : null,
-    ),
-  );
+  // Opened from an invite link: the page address on the web, the link that
+  // launched the app on Android.
+  final link = kIsWeb ? Uri.base : await AppLinks().getInitialLink();
+  runApp(LastCardApp(joinCode: link == null ? null : joinCodeOf(link)));
 }
+
+/// Lets an invite opened while the app runs bring up its room.
+final navigatorKey = GlobalKey<NavigatorState>();
 
 class LastCardApp extends StatefulWidget {
   const LastCardApp({super.key, this.joinCode});
@@ -33,23 +43,40 @@ class LastCardApp extends StatefulWidget {
 
 class _LastCardAppState extends State<LastCardApp> with WidgetsBindingObserver {
   final _theme = ThemeSwitch.instance;
-  late bool _dark = _resolve();
+  final _lang = LangSwitch.instance;
+  late bool _dark = _resolveDark();
 
-  bool _resolve() => _theme.isDark(
-    WidgetsBinding.instance.platformDispatcher.platformBrightness,
-  );
+  static PlatformDispatcher get _device =>
+      WidgetsBinding.instance.platformDispatcher;
+
+  bool _resolveDark() => _theme.isDark(_device.platformBrightness);
 
   @override
   void initState() {
     super.initState();
     ThemeSwitch.apply(_dark);
+    lang = _lang.resolve(_device.locales);
     WidgetsBinding.instance.addObserver(this);
     _theme.addListener(_update);
+    _lang.addListener(_update);
+    if (!kIsWeb) {
+      _links = AppLinks().uriLinkStream.listen((link) {
+        final code = joinCodeOf(link);
+        if (code == null) return;
+        navigatorKey.currentState?.push(
+          MaterialPageRoute(builder: (_) => OnlineHomeScreen(joinCode: code)),
+        );
+      });
+    }
   }
+
+  StreamSubscription<Uri>? _links;
 
   @override
   void dispose() {
+    _links?.cancel();
     _theme.removeListener(_update);
+    _lang.removeListener(_update);
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -57,14 +84,20 @@ class _LastCardAppState extends State<LastCardApp> with WidgetsBindingObserver {
   @override
   void didChangePlatformBrightness() => _update();
 
+  @override
+  void didChangeLocales(List<Locale>? locales) => _update();
+
   void _update() {
-    final dark = _resolve();
-    if (dark == _dark || !mounted) return;
+    final dark = _resolveDark();
+    final language = _lang.resolve(_device.locales);
+    if ((dark == _dark && language == lang) || !mounted) return;
     _dark = dark;
+    lang = language;
     ThemeSwitch.apply(dark);
     setState(() {});
-    // Colors are read straight from Palette, so every screen (games in
-    // progress included) is rebuilt in place, keeping its state.
+    // Colors and words are read straight from Palette and t(), so every
+    // screen (games in progress included) is rebuilt in place, keeping its
+    // state.
     void rebuild(Element e) {
       e.markNeedsBuild();
       e.visitChildren(rebuild);
@@ -76,6 +109,7 @@ class _LastCardAppState extends State<LastCardApp> with WidgetsBindingObserver {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
+      navigatorKey: navigatorKey,
       title: 'Last Card',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),

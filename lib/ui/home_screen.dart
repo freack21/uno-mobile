@@ -1,6 +1,7 @@
 import 'package:material_ui/material_ui.dart';
 
 import 'package:last_card_core/cards.dart';
+import 'package:last_card_core/i18n.dart';
 import 'package:last_card_core/modes.dart';
 import 'package:last_card_core/rules.dart';
 
@@ -8,6 +9,7 @@ import '../online/online_screens.dart';
 import '../online/session.dart';
 import 'game_screen.dart';
 import 'guide_screen.dart';
+import 'lang_switch.dart';
 import 'mode_screen.dart';
 import 'playing_card.dart';
 import 'sfx.dart';
@@ -59,7 +61,7 @@ class _HomeScreenState extends State<HomeScreen> {
             SliverPadding(
               padding: const EdgeInsets.fromLTRB(20, 24, 20, 12),
               sliver: SliverToBoxAdapter(
-                child: Text('Game modes', style: font(22, weight: 700)),
+                child: Text(t('Game modes'), style: font(22, weight: 700)),
               ),
             ),
             SliverPadding(
@@ -90,7 +92,7 @@ class _Hero extends StatelessWidget {
       children: [
         const Row(
           mainAxisAlignment: MainAxisAlignment.end,
-          children: [ThemeButton(), SoundButton()],
+          children: [LangButton(), ThemeButton(), SoundButton()],
         ),
         SizedBox(
           height: 150,
@@ -116,13 +118,13 @@ class _Hero extends StatelessWidget {
         ),
         const SizedBox(height: 22),
         Text(
-          'LAST CARD',
+          t('LAST CARD'),
           textAlign: TextAlign.center,
           style: font(40, weight: 700, height: 1).copyWith(letterSpacing: 1),
         ),
         const SizedBox(height: 6),
         Text(
-          'Match colors, play dirty, empty your hand.',
+          t('Match colors, play dirty, empty your hand.'),
           textAlign: TextAlign.center,
           style: font(15, color: Palette.muted),
         ),
@@ -140,7 +142,7 @@ class _Hero extends StatelessWidget {
             ),
           ),
           icon: const Icon(Icons.play_arrow_rounded),
-          label: const Text('Quick play'),
+          label: Text(t('Quick play')),
         ),
         const SizedBox(height: 10),
         FilledButton.icon(
@@ -152,7 +154,7 @@ class _Hero extends StatelessWidget {
             MaterialPageRoute(builder: (_) => const OnlineHomeScreen()),
           ),
           icon: const Icon(Icons.groups_rounded),
-          label: const Text('Play online with friends'),
+          label: Text(t('Play online with friends')),
         ),
         const SizedBox(height: 10),
         OutlinedButton.icon(
@@ -161,7 +163,7 @@ class _Hero extends StatelessWidget {
             MaterialPageRoute(builder: (_) => const GuideScreen()),
           ),
           icon: const Icon(Icons.school_rounded),
-          label: const Text('How to play'),
+          label: Text(t('How to play')),
         ),
       ],
     );
@@ -223,7 +225,7 @@ class _ModeTile extends StatelessWidget {
                               borderRadius: BorderRadius.circular(8),
                             ),
                             child: Text(
-                              mode.tag!,
+                              t(mode.tag!),
                               style: font(
                                 11,
                                 weight: 600,
@@ -236,7 +238,7 @@ class _ModeTile extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      mode.tagline,
+                      t(mode.tagline),
                       maxLines: 2,
                       overflow: TextOverflow.ellipsis,
                       style: font(13.5, color: Palette.muted, height: 1.3),
@@ -262,7 +264,7 @@ class SoundButton extends StatelessWidget {
     return ValueListenableBuilder<bool>(
       valueListenable: soundOn,
       builder: (context, on, _) => IconButton(
-        tooltip: on ? 'Mute sounds' : 'Turn sounds on',
+        tooltip: on ? t('Mute sounds') : t('Turn sounds on'),
         onPressed: () => setSoundOn(!on),
         icon: Icon(on ? Icons.volume_up_rounded : Icons.volume_off_rounded),
         color: on ? Palette.text : Palette.muted,
@@ -281,7 +283,7 @@ class ThemeButton extends StatelessWidget {
     return ListenableBuilder(
       listenable: themes,
       builder: (context, _) => PopupMenuButton<ThemeChoice>(
-        tooltip: 'Light or dark',
+        tooltip: t('Light or dark'),
         initialValue: themes.choice,
         onSelected: themes.pick,
         color: Palette.surface,
@@ -296,9 +298,9 @@ class ThemeButton extends StatelessWidget {
                   Icon(_icon(c), size: 20, color: Palette.text),
                   const SizedBox(width: 12),
                   Text(switch (c) {
-                    ThemeChoice.system => 'Same as device',
-                    ThemeChoice.light => 'Light',
-                    ThemeChoice.dark => 'Dark',
+                    ThemeChoice.system => t('Same as device'),
+                    ThemeChoice.light => t('Light'),
+                    ThemeChoice.dark => t('Dark'),
                   }, style: font(15, weight: c == themes.choice ? 650 : 500)),
                 ],
               ),
@@ -313,4 +315,37 @@ class ThemeButton extends StatelessWidget {
     ThemeChoice.light => Icons.light_mode_rounded,
     ThemeChoice.dark => Icons.dark_mode_rounded,
   };
+}
+
+/// English, Bahasa Indonesia, or the device's language.
+class LangButton extends StatelessWidget {
+  const LangButton({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final langs = LangSwitch.instance;
+    String name(Lang? l) => switch (l) {
+      null => t('Same as device'),
+      Lang.en => 'English',
+      Lang.id => 'Bahasa Indonesia',
+    };
+    return PopupMenuButton<Lang?>(
+      tooltip: t('Language'),
+      initialValue: langs.choice,
+      onSelected: langs.pick,
+      color: Palette.surface,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      icon: Icon(Icons.translate_rounded, color: Palette.text),
+      itemBuilder: (context) => [
+        for (final l in <Lang?>[null, Lang.id, Lang.en])
+          PopupMenuItem(
+            value: l,
+            child: Text(
+              name(l),
+              style: font(15, weight: l == langs.choice ? 650 : 500),
+            ),
+          ),
+      ],
+    );
+  }
 }
