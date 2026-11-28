@@ -409,6 +409,30 @@ void main() {
     await back.close();
   });
 
+  test('reactions reach everyone, from a fixed list, rate limited', () async {
+    final (cs, _, _) = await room(1);
+    final me = (await cs[0].next((m) => isType(m, 'room')))['you'];
+    cs[0].send({'t': 'react', 'r': 3});
+    final got = await cs[1].next((m) => isType(m, 'react'));
+    expect(got['from'], me);
+    expect(got['r'], 3);
+    // Too soon, out of range or not a number: dropped.
+    cs[0].send({'t': 'react', 'r': 4});
+    cs[1].send({'t': 'react', 'r': 99});
+    cs[1].send({'t': 'react', 'r': 'lol'});
+    cs[1].send({'t': 'react', 'r': 1});
+    final next = await cs[0].next((m) => isType(m, 'react') && m['from'] != me);
+    expect(next['r'], 1);
+    await Future<void>.delayed(const Duration(milliseconds: 100));
+    expect(
+      cs[1].inbox.where((m) => isType(m, 'react') && m['r'] == 4),
+      isEmpty,
+    );
+    for (final c in cs) {
+      await c.close();
+    }
+  });
+
   test('leaving hands the host role on', () async {
     final (cs, _, _) = await room(1);
     final guestView = await cs[1].next((m) => isType(m, 'room'));

@@ -37,6 +37,10 @@ class ServerConfig {
 }
 
 const maxMembers = 6;
+
+/// Reactions are picked from a fixed list in the app (emoji and phrases).
+const reactionCount = 12;
+const reactionGap = Duration(milliseconds: 1000);
 const _codeChars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
 const _botNames = ['Kira', 'Bimo', 'Sari', 'Dodo', 'Rara'];
 const _adjectives = [
@@ -84,6 +88,26 @@ int pointsForPlace(int place) => switch (place) {
   _ => 1,
 };
 
+/// Something the player cannot do, as an English [key] with `{name}`
+/// placeholders and their [args].
+class Problem {
+  const Problem(this.key, [this.args = const {}]);
+
+  final String key;
+  final Map<String, Object?> args;
+
+  String get text => args.entries.fold(
+    key,
+    (s, e) => s.replaceAll('{${e.key}}', '${e.value}'),
+  );
+
+  Map<String, Object?> toJson() => {
+    'msg': text,
+    if (key != text) 'key': key,
+    if (args.isNotEmpty) 'args': args,
+  };
+}
+
 class Member {
   Member(this.id, this.token, this.name, this.color);
 
@@ -93,6 +117,9 @@ class Member {
 
   /// Avatar color index, kept for as long as the member stays in the room.
   final int color;
+
+  /// When this member last sent a reaction (rate limit).
+  DateTime? lastReaction;
   Connection? connection;
   int points = 0;
   bool get online => connection != null;
@@ -323,12 +350,14 @@ class Room {
     return 'Player ${members.length + 1}';
   }
 
-  /// Error text, or null if [name] can be used by [who].
-  String? checkName(String name, Member who) {
-    if (name.isEmpty) return 'Nickname cannot be empty';
-    if (name.length > 16) return 'Nickname is at most 16 characters';
+  /// What is wrong with [name] for [who], or null if it can be used.
+  Problem? checkName(String name, Member who) {
+    if (name.isEmpty) return const Problem('Nickname cannot be empty');
+    if (name.length > 16) {
+      return const Problem('Nickname is at most 16 characters');
+    }
     if (members.any((m) => m != who && m.name == name)) {
-      return '"$name" is already taken in this room';
+      return Problem('"{name}" is already taken in this room', {'name': name});
     }
     return null;
   }
@@ -382,6 +411,8 @@ class Room {
       'over': t.isOver,
       'notes': notes,
       'colors': [for (var i = 0; i < s.count; i++) m.colors[s.toReal(i)]],
+      // Who sits where (null for bots), to place reactions.
+      'members': [for (var i = 0; i < s.count; i++) m.seats[s.toReal(i)]],
     };
     switch (t) {
       case ShedTable():
@@ -433,9 +464,11 @@ class Room {
   // ------------------------------------------------------------ matches
 
   /// Starts a match with everyone in the room plus the configured bots.
-  /// Returns an error message, or null on success.
-  String? start() {
-    if (match != null && !match!.table.isOver) return 'A match is running';
+  /// Returns what prevents it, or null on success.
+  Problem? start() {
+    if (match != null && !match!.table.isOver) {
+      return const Problem('A match is running');
+    }
     final mode = setup.mode;
     final people = [
       for (final m in members)
@@ -448,10 +481,16 @@ class Room {
         : (rules.format == MatchFormat.elimination ? 3 : 2);
     final maxPlayers = rules.teams ? 4 : 6;
     if (total < min) {
-      return '${mode.name} needs at least $min players: add bots or invite friends';
+      return Problem(
+        '{mode} needs at least {n} players: add bots or invite friends',
+        {'mode': mode.name, 'n': min},
+      );
     }
     if (total > maxPlayers) {
-      return '${mode.name} allows at most $maxPlayers players: remove bots';
+      return Problem('{mode} allows at most {n} players: remove bots', {
+        'mode': mode.name,
+        'n': maxPlayers,
+      });
     }
     final seats = <String?>[
       for (final p in people) p.id,
@@ -691,7 +730,10 @@ class Lobby {
     Room? room;
     Member? me;
 
-    void error(String text) => c.send({'t': 'error', 'msg': text});
+    // The English text plus its template and values, so each app can show
+    // it in its own language.
+    void error(String text, [Map<String, Object?> args = const {}]) =>
+        c.send({...Problem(text, args).toJson(), 't': 'error'});
 
     void attach(Room r, Member m) {
       // A newer connection for the same member replaces the old one.
@@ -756,7 +798,7 @@ class Lobby {
               : target.members.where((x) => x.token == token).firstOrNull;
           if (back != null) return attach(target, back);
           if (target.members.length >= maxMembers) {
-            return error('This room is full ($maxMembers players)');
+            return error('This room is full ({n} players)', {'n': maxMembers});
           }
           final joined = newMember(target);
           target.members.add(joined);
@@ -796,14 +838,14 @@ class Lobby {
     Room r,
     Member m,
     Map<String, dynamic> msg,
-    void Function(String) error,
+    void Function(String, [Map<String, Object?>]) error,
   ) {
     final host = r.hostId == m.id;
     switch (msg['t']) {
       case 'nick':
         final name = '${msg['name'] ?? ''}'.trim();
         final problem = r.checkName(name, m);
-        if (problem != null) return error(problem);
+        if (problem != null) return error(problem.key, problem.args);
         m.name = name;
         r.broadcastRoom();
       case 'setup':
@@ -848,10 +890,21 @@ class Lobby {
       case 'start':
         if (!host) return error('Only the host can start');
         final problem = r.start();
-        if (problem != null) error(problem);
+        if (problem != null) error(problem.key, problem.args);
       case 'act':
         if (!r.act(m, msg)) {
           m.connection?.send({'t': 'rejected'});
+        }
+      case 'react':
+        // A fixed set only (no free text), at most one every second.
+        final pick = msg['r'];
+        if (pick is! int || pick < 0 || pick >= reactionCount) return;
+        final now = DateTime.now();
+        final last = m.lastReaction;
+        if (last != null && now.difference(last) < reactionGap) return;
+        m.lastReaction = now;
+        for (final x in r.members) {
+          x.connection?.send({'t': 'react', 'from': m.id, 'r': pick});
         }
       case 'end':
         if (!host) return error('Only the host can end the session');
