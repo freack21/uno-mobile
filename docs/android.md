@@ -49,3 +49,22 @@ flutter build appbundle --release  # build/app/outputs/bundle/release/app-releas
 
 Install the APK on a phone with `adb install build/app/outputs/flutter-apk/app-release.apk`
 or by opening the file on the phone (allow installs from that source).
+
+## Builds in GitHub Actions
+
+`.github/workflows/android.yml` builds signed APKs and the app bundle for
+every `v*` tag (and on demand from the Actions tab) and attaches them to the
+run as the `last-card-android` artifact. It needs two repository secrets
+(Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | `base64 -w0 android/upload-keystore.jks` |
+| `ANDROID_KEY_PASSWORD` | the keystore password from `android/key.properties` |
+
+The workflow refuses to run without them and fails if the result is signed
+with the debug key.
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
