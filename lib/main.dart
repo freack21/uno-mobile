@@ -14,6 +14,8 @@ import 'online/online_screens.dart';
 import 'ui/app_update.dart';
 import 'ui/home_screen.dart';
 import 'ui/lang_switch.dart';
+import 'ui/sfx.dart';
+import 'ui/stats.dart';
 import 'ui/theme.dart';
 import 'ui/theme_switch.dart';
 import 'ui/update_toast.dart';
@@ -31,6 +33,28 @@ Future<void> main() async {
 
 /// Lets an invite opened while the app runs bring up its room.
 final navigatorKey = GlobalKey<NavigatorState>();
+
+/// Shows "achievement unlocked" over whatever screen is open.
+final messengerKey = GlobalKey<ScaffoldMessengerState>();
+
+void _celebrate(Achievement a) {
+  playSfx(Sfx.win);
+  messengerKey.currentState?.showSnackBar(
+    SnackBar(
+      content: Row(
+        children: [
+          Icon(a.icon, color: const Color(0xFFF4B620)),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Text(
+              t('Achievement unlocked: {name}', {'name': t(a.title)}),
+            ),
+          ),
+        ],
+      ),
+    ),
+  );
+}
 
 class LastCardApp extends StatefulWidget {
   const LastCardApp({super.key, this.joinCode});
@@ -59,6 +83,7 @@ class _LastCardAppState extends State<LastCardApp> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _theme.addListener(_update);
     _lang.addListener(_update);
+    Stats.instance.onUnlock = _celebrate;
     if (!kIsWeb) {
       _links = AppLinks().uriLinkStream.listen((link) {
         final code = joinCodeOf(link);
@@ -110,6 +135,7 @@ class _LastCardAppState extends State<LastCardApp> with WidgetsBindingObserver {
   Widget build(BuildContext context) {
     return MaterialApp(
       navigatorKey: navigatorKey,
+      scaffoldMessengerKey: messengerKey,
       title: 'Last Card',
       debugShowCheckedModeBanner: false,
       theme: buildTheme(),

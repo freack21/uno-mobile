@@ -7,6 +7,7 @@ import 'package:last_card_core/i18n.dart';
 import 'package:last_card_core/i18n_id.dart';
 import 'package:last_card_core/protocol.dart';
 import 'package:last_card_core/rules.dart';
+import 'package:uno_mobile/ui/stats.dart';
 
 /// Every English string the app passes through t(), tn() and the message
 /// renderer, plus mode texts and server errors, read from the sources.
@@ -66,7 +67,10 @@ void main() {
   tearDown(() => lang = Lang.en);
 
   test('every English string has an Indonesian translation', () {
-    final missing = sourceStrings().where((k) => !indonesian.containsKey(k));
+    final missing = {
+      ...sourceStrings(),
+      ...achievementTexts(),
+    }.where((k) => !indonesian.containsKey(k));
     expect(missing, isEmpty);
   });
 

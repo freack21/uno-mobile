@@ -18,6 +18,7 @@ import 'guide_screen.dart';
 import 'party_widgets.dart';
 import 'playing_card.dart';
 import 'sfx.dart';
+import 'stats.dart';
 import 'theme.dart';
 
 class ExactScoreScreen extends StatefulWidget {
@@ -141,6 +142,11 @@ class _ExactScoreScreenState extends State<ExactScoreScreen> {
     if (table.isOver && !_endPlayed) {
       _endPlayed = true;
       playSfx(g.winner == me ? Sfx.win : Sfx.lose);
+      Stats.instance.recordGame(
+        mode: widget.mode.id,
+        won: g.winner == me,
+        online: online,
+      );
     }
     setState(() {});
   }

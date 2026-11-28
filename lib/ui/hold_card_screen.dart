@@ -17,6 +17,7 @@ import 'guide_screen.dart';
 import 'party_widgets.dart';
 import 'playing_card.dart';
 import 'sfx.dart';
+import 'stats.dart';
 import 'theme.dart';
 
 class HoldCardScreen extends StatefulWidget {
@@ -132,6 +133,11 @@ class _HoldCardScreenState extends State<HoldCardScreen> {
     if (table.isOver && !_endPlayed) {
       _endPlayed = true;
       playSfx(g.winners.contains(me) ? Sfx.win : Sfx.lose);
+      Stats.instance.recordGame(
+        mode: widget.mode.id,
+        won: g.winners.contains(me),
+        online: online,
+      );
     }
     setState(() {});
   }

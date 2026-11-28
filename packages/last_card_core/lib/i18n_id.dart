@@ -49,6 +49,8 @@ const indonesian = <String, String>{
       'Pemain dengan banyak kartu lebih mungkin punya warna sebelumnya.',
   'A short game is worth fewer points: if you are far behind, slow the leader down.':
       'Game singkat bernilai lebih sedikit poin: jika kamu jauh tertinggal, perlambat pemain yang memimpin.',
+  'Achievement unlocked: {name}': 'Pencapaian terbuka: {name}',
+  'Achievements {n}/{max}': 'Pencapaian {n}/{max}',
   'Action cards': 'Kartu aksi',
   'Action combos add up': 'Kombo aksi dijumlahkan',
   'After a swap or rotation anyone left with a single card counts as having called Last Card.':
@@ -66,6 +68,7 @@ const indonesian = <String, String>{
       'Jadilah pemain pertama yang menghabiskan semua kartu di tanganmu.',
   'Be the first to empty your hand.':
       'Jadilah yang pertama menghabiskan kartumu.',
+  'Best streak': 'Rekor beruntun',
   'Blue': 'Biru',
   'Bluff a Wild +4. Or call out the bluffer.':
       'Gertak dengan Wild +4. Atau bongkar si penggertak.',
@@ -79,9 +82,11 @@ const indonesian = <String, String>{
       'Bot juga bereaksi: makin sulit botnya, makin cepat tangannya.',
   'Box': 'Kotak',
   'Brutal': 'Brutal',
+  'By mode': 'Per mode',
   'CATCH!': 'TANGKAP!',
   'CAUGHT!': 'KETAHUAN!',
   'CHALLENGE': 'TANTANG',
+  'Call LAST CARD 10 times': 'Panggil LAST CARD 10 kali',
   'Call a number from 0 to 9 (or a color, in Color mode).':
       'Sebut angka dari 0 sampai 9 (atau warna, di mode Warna).',
   'Call it blind. On a match, slap HOLD — slowest takes the box.':
@@ -95,6 +100,8 @@ const indonesian = <String, String>{
       'Tidak bisa terhubung ke server game. Cek koneksimu.',
   'Card points': 'Poin kartu',
   'Careful': 'Hati-hati',
+  'Catch a player who forgot to call LAST CARD':
+      'Tangkap pemain yang lupa bilang LAST CARD',
   'Challenge': 'Tantang',
   'Challenge Wild +4': 'Challenge Wild +4',
   'Challenge failed! You draw 6': 'Tantangan gagal! Kamu ambil 6',
@@ -138,6 +145,7 @@ const indonesian = <String, String>{
   'DEALER': 'PEMBAGI',
   'DISCARD ALL': 'DISCARD ALL',
   'DRAW': 'AMBIL',
+  'Daily player': 'Pemain harian',
   'Dark': 'Gelap',
   'Dark side': 'Sisi gelap',
   'Dealing': 'Membagikan',
@@ -176,6 +184,7 @@ const indonesian = <String, String>{
       'Semua pemain dapat 10 kartu tertutup. Tidak ada yang bisa melihatnya — bahkan kamu.',
   'Everyone races to the same target, from 20 to 50 points.':
       'Semua berlomba ke target yang sama, dari 20 sampai 50 poin.',
+  'Explorer': 'Penjelajah',
   'FLIP!': 'FLIP!',
   'Fill your track exactly: if you are on 19 of 20, only a 1 will do.':
       'Isi lintasanmu dengan tepat: jika kamu di 19 dari 20, hanya angka 1 yang bisa.',
@@ -184,9 +193,12 @@ const indonesian = <String, String>{
   'Final score': 'Skor akhir',
   'Find a match': 'Cari lawan',
   'Finding players… {n}/{max}': 'Mencari pemain… {n}/{max}',
+  'Finish a daily challenge': 'Selesaikan tantangan harian',
+  'Finish an online match': 'Selesaikan satu pertandingan online',
   'First card: {card}': 'Kartu pertama: {card}',
   'First to empty their hand': 'Pertama yang menghabiskan kartunya',
   'First to exactly {n}': 'Pertama tepat {n}',
+  'First win': 'Menang pertama',
   'Flip': 'Flip',
   'Flipping': 'Membalik',
   'Flipside': 'Flipside',
@@ -202,6 +214,7 @@ const indonesian = <String, String>{
   'Good to know': 'Perlu diketahui',
   'Got two 6s? Throw them both in one go.':
       'Punya dua 6? Lempar keduanya sekaligus.',
+  'Gotcha!': 'Kena kamu!',
   'Green': 'Hijau',
   'Guess': 'Tebak',
   'Guess the color': 'Tebak warnanya',
@@ -210,6 +223,7 @@ const indonesian = <String, String>{
   'Hands swing hard: keep a Wild to avoid long draws.':
       'Jumlah kartu bisa berubah drastis: simpan Wild agar tidak ambil kartu terlalu banyak.',
   'Hard': 'Sulit',
+  'Hat-trick': 'Hat-trick',
   'Higher': 'Lebih tinggi',
   'Hit the next player with Skip or +2 when they are down to one or two cards.':
       'Serang pemain berikutnya dengan Skip atau +2 saat kartunya tinggal satu atau dua.',
@@ -286,6 +300,7 @@ const indonesian = <String, String>{
       'Lihat sisi gelap kartumu sebelum membalik: balik saat sisi itu lebih bagus dari sisi terangmu.',
   'Look at your hand while the bots play — plan your move before your turn.':
       'Lihat kartumu selagi bot bermain — rencanakan langkahmu sebelum giliranmu.',
+  'Loud and clear': 'Lantang dan jelas',
   'MATCH': 'COCOK',
   'MATCH! Press HOLD!': 'COCOK! Tekan HOLD!',
   'MVP': 'MVP',
@@ -371,6 +386,7 @@ const indonesian = <String, String>{
   'Partners sit opposite and share the win':
       'Rekan duduk berhadapan dan menang bersama',
   'Party': 'Party',
+  'Party animal': 'Raja pesta',
   'Pass the pain along. +2 on +2, +4 on +4.':
       'Oper hukumannya. +2 di atas +2, +4 di atas +4.',
   'Password': 'Kata sandi',
@@ -383,6 +399,8 @@ const indonesian = <String, String>{
   'Pink': 'Pink',
   'Pink, teal, orange and purple — and much meaner.':
       'Pink, toska, oranye, dan ungu — dan jauh lebih kejam.',
+  'Play 5 different modes': 'Main 5 mode berbeda',
+  'Play 50 games': 'Main 50 permainan',
   'Play Classic with anyone who is looking. Bots fill the empty seats after 20 seconds.':
       'Main Classic dengan siapa saja yang sedang cari lawan. Bot mengisi kursi kosong setelah 20 detik.',
   'Play a 0 and every hand moves one seat in the direction of play.':
@@ -394,6 +412,7 @@ const indonesian = <String, String>{
   'Play changes direction': 'Arah main berubah',
   'Play continues from you, as if it had been your turn.':
       'Permainan berlanjut dari kamu, seolah itu giliranmu.',
+  'Play every mode': 'Main semua mode',
   'Play goes clockwise': 'Arah main searah jarum jam',
   'Play goes counter-clockwise': 'Arah main berlawanan jarum jam',
   'Play online': 'Main online',
@@ -407,6 +426,7 @@ const indonesian = <String, String>{
   'Play {n}': 'Mainkan {n}',
   'Playable cards in your hand are lifted; the others are dimmed.':
       'Kartu di tanganmu yang bisa dimainkan terangkat; yang lain diredupkan.',
+  'Played': 'Dimainkan',
   'Players · {n}/6': 'Pemain · {n}/6',
   'Playing Flip turns every card over — hands, deck and discard pile. Play continues on the other side.':
       'Memainkan Flip membalik semua kartu — di tangan, dek, dan tumpukan buang. Permainan berlanjut di sisi sebaliknya.',
@@ -461,6 +481,7 @@ const indonesian = <String, String>{
       'Simpan 7 untuk saat orang lain hampir menang, lalu ambil kartunya.',
   'Scoreboard': 'Papan skor',
   'Scoring': 'Skor',
+  'Seen it all': 'Sudah coba semua',
   'Seven-O': 'Seven-O',
   'Seven-O (Custom): 7s swap hands once and 0s pass hands once, however many you play.':
       'Seven-O (Custom): 7 menukar kartu sekali dan 0 mengoper kartu sekali, berapa pun yang kamu mainkan.',
@@ -485,6 +506,7 @@ const indonesian = <String, String>{
   'Skip, Reverse, +2: 20 points each.':
       'Skip, Reverse, +2: masing-masing 20 poin.',
   'So close!': 'Dikit lagi!',
+  'Social': 'Gaul',
   'Sound effects': 'Efek suara',
   'Special cards': 'Kartu spesial',
   'Stack a draw card or take +{n}': 'Tumpuk kartu plus atau ambil +{n}',
@@ -496,7 +518,10 @@ const indonesian = <String, String>{
   'Start here': 'Mulai di sini',
   'Start now': 'Mulai sekarang',
   'Start {mode}': 'Mulai {mode}',
+  'Stats': 'Statistik',
+  'Stats & achievements': 'Statistik & pencapaian',
   'Stay': 'Tetap',
+  'Survivor': 'Penyintas',
   'Swap hands with…': 'Tukar kartu dengan…',
   'Swaps are mandatory: a 7 always takes a target.':
       'Tukar itu wajib: 7 selalu harus memilih target.',
@@ -581,10 +606,12 @@ const indonesian = <String, String>{
   'Two-sided deck. One Flip and everything turns dark.':
       'Dek dua sisi. Satu Flip dan semuanya jadi gelap.',
   'Unknown message': 'Pesan tidak dikenal',
+  'Unstoppable': 'Tak terbendung',
   'Update': 'Perbarui',
   'Update available': 'Pembaruan tersedia',
   'Use +2 on whoever is closest to finishing.':
       'Pakai +2 pada siapa pun yang paling dekat selesai.',
+  'Veteran': 'Veteran',
   'WASTED': 'HANGUS',
   'WRONG CALL': 'SALAH PANGGIL',
   'Wait for the deal to finish': 'Tunggu pembagian kartu selesai',
@@ -638,8 +665,15 @@ const indonesian = <String, String>{
       'Wild — tambahkan nilai berapa pun dari 1 sampai 9 yang masih muat.',
   'Wild — choose the next color.': 'Wild — pilih warna berikutnya.',
   'Wild! Add any value up to {n}': 'Wild! Tambah nilai berapa pun sampai {n}',
+  'Win 3 games in a row': 'Menang 3 kali berturut-turut',
+  'Win 5 games in a row': 'Menang 5 kali berturut-turut',
+  'Win Exact Score or Hold Card': 'Menangkan Exact Score atau Hold Card',
+  'Win a Merciless game': 'Menangkan permainan Merciless',
+  'Win any game': 'Menangkan satu permainan',
+  'Win rate': 'Rasio menang',
   'Win rounds, bank the leftovers. First to 500.':
       'Menangkan ronde, kumpulkan sisa kartu lawan. Pertama capai 500.',
+  'Wins': 'Menang',
   'Wrong room ID or password': 'ID room atau kata sandi salah',
   'YOU': 'KAMU',
   'Yellow': 'Kuning',
@@ -766,4 +800,5 @@ const indonesian = <String, String>{
   '{n} players at the table': '{n} pemain di meja',
   '{n} pts': '{n} poin',
   '{n} won': '{n} menang',
+  '{won} of {played} won': '{won} dari {played} menang',
 };

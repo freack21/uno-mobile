@@ -12,6 +12,7 @@ import 'package:last_card_core/protocol.dart';
 import 'package:last_card_core/rules.dart';
 
 import 'sfx.dart';
+import 'stats.dart';
 import 'theme.dart';
 
 const botNames = ['Kira', 'Bimo', 'Sari', 'Dodo', 'Rara'];
@@ -479,6 +480,7 @@ class GameController extends ChangeNotifier {
     final sounds = <Sfx>{};
     for (final e in game.events) {
       if (e.id <= _seenEvent) continue;
+      _count(e);
       next = _bannerFor(e) ?? next;
       final sound = _soundFor(e);
       if (sound != null) sounds.add(sound);
@@ -487,6 +489,35 @@ class GameController extends ChangeNotifier {
     if (game.events.isNotEmpty) _seenEvent = game.events.last.id;
     if (next != null) banner = next;
     return next != null;
+  }
+
+  /// The game [gameId] whose result is already in the stats.
+  int? _recorded;
+
+  /// Stats and achievements from what just happened.
+  void _count(GameEvent e) {
+    final stats = Stats.instance;
+    final by = e.msg.p.isEmpty ? null : e.msg.p.first;
+    switch (e.type) {
+      case EventType.caught when by == human:
+        stats.recordCatch();
+      case EventType.lastCall when by == human:
+        stats.recordLastCall();
+      // Knocked out: the match goes on without you, so it counts now.
+      case EventType.knockout when e.seat == human:
+        _record(false);
+      case EventType.roundEnd when game.isMatchOver:
+        final w = e.seat;
+        _record(w == human || (w != null && game.isTeammate(human, w)));
+      default:
+        break;
+    }
+  }
+
+  void _record(bool won) {
+    if (_recorded == gameId) return;
+    _recorded = gameId;
+    Stats.instance.recordGame(mode: mode.id, won: won, online: online);
   }
 
   Sfx? _soundFor(GameEvent e) {

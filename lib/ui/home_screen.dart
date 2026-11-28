@@ -13,6 +13,7 @@ import 'lang_switch.dart';
 import 'mode_screen.dart';
 import 'playing_card.dart';
 import 'sfx.dart';
+import 'stats_screen.dart';
 import 'theme.dart';
 import 'theme_switch.dart';
 
@@ -157,13 +158,30 @@ class _Hero extends StatelessWidget {
           label: Text(t('Play online with friends')),
         ),
         const SizedBox(height: 10),
-        OutlinedButton.icon(
-          onPressed: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => const GuideScreen()),
-          ),
-          icon: const Icon(Icons.school_rounded),
-          label: Text(t('How to play')),
+        Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const GuideScreen()),
+                ),
+                icon: const Icon(Icons.school_rounded),
+                label: Text(t('How to play')),
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: () => Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const StatsScreen()),
+                ),
+                icon: const Icon(Icons.emoji_events_outlined),
+                label: Text(t('Stats')),
+              ),
+            ),
+          ],
         ),
       ],
     );
