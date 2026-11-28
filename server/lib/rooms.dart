@@ -26,6 +26,7 @@ class ServerConfig {
     this.idleMs = 25000,
     this.introMs = 8400,
     this.emptyRoomTtl = const Duration(minutes: 30),
+    this.quickWait = const Duration(seconds: 20),
   });
 
   final double pace;
@@ -34,7 +35,13 @@ class ServerConfig {
   final int idleMs;
   final int introMs;
   final Duration emptyRoomTtl;
+
+  /// Quick Match: how long to wait for more people before bots fill in.
+  final Duration quickWait;
 }
+
+/// Seats at a Quick Match table (people first, bots fill the rest).
+const quickSize = 4;
 
 const maxMembers = 6;
 
@@ -241,6 +248,10 @@ class Room {
   /// next match starts.
   String? interrupted;
 
+  /// Quick Match room still gathering players; starts at [quickAt].
+  DateTime? quickAt;
+  Timer? quickTimer;
+
   /// Everything needed to bring the room back after a restart, a running
   /// match included (it carries on where it was).
   Map<String, Object?> toJson() {
@@ -389,6 +400,9 @@ class Room {
       'matchMode': m?.mode.id,
       'finished': finished,
       'interrupted': interrupted,
+      'quickInMs': quickAt == null
+          ? null
+          : max(0, quickAt!.difference(DateTime.now()).inMilliseconds),
       'history': [for (final h in history) h.toJson()],
     };
   }
@@ -664,7 +678,10 @@ class Room {
     broadcastRoom();
   }
 
-  void dispose() => match?.table.dispose();
+  void dispose() {
+    quickTimer?.cancel();
+    match?.table.dispose();
+  }
 }
 
 /// All rooms on this server and the message handling for connections.
@@ -693,10 +710,32 @@ class Lobby {
     });
   }
 
+  /// The Quick Match room gathering players, if any.
+  Room? quick;
+
+  /// Starts a Quick Match with the people there and bots in empty seats.
+  void launchQuick(Room r) {
+    if (r.quickAt == null) return;
+    r.quickTimer?.cancel();
+    r.quickAt = null;
+    if (quick == r) quick = null;
+    final people = r.members.where((m) => m.online).length;
+    if (people == 0) return;
+    r.setup
+      ..modeId = 'classic'
+      ..bots = max(0, quickSize - people);
+    final problem = r.start();
+    if (problem != null) r.broadcastRoom();
+  }
+
   /// All rooms, for saving across restarts.
   Map<String, Object?> snapshot() => {
     'version': 1,
-    'rooms': [for (final r in rooms.values) r.toJson()],
+    // A Quick Match still waiting for players is not worth bringing back.
+    'rooms': [
+      for (final r in rooms.values)
+        if (r.quickAt == null) r.toJson(),
+    ],
   };
 
   /// Brings back rooms from [snapshot]; returns how many. Members reconnect
@@ -786,6 +825,27 @@ class Lobby {
           created.members.add(host);
           created.hostId = host.id;
           attach(created, host);
+        case 'quick':
+          var q = quick;
+          if (q == null || !rooms.containsKey(q.id) || q.quickAt == null) {
+            String id;
+            do {
+              id = _code(6, _codeChars);
+            } while (rooms.containsKey(id));
+            q = Room(id, _code(4, '0123456789'), config, rng)
+              ..quickAt = DateTime.now().add(config.quickWait);
+            final room = q;
+            q.quickTimer = Timer(config.quickWait, () => launchQuick(room));
+            rooms[id] = q;
+            quick = q;
+          }
+          final joined = newMember(q);
+          q.members.add(joined);
+          q.hostId ??= joined.id;
+          attach(q, joined);
+          if (q.members.where((m) => m.online).length >= quickSize) {
+            launchQuick(q);
+          }
         case 'join':
           final target = rooms['${msg['room'] ?? ''}'.toUpperCase().trim()];
           if (target == null ||
@@ -889,6 +949,8 @@ class Lobby {
         r.broadcastRoom();
       case 'start':
         if (!host) return error('Only the host can start');
+        // Quick Match: the host does not want to wait any longer.
+        if (r.quickAt != null) return launchQuick(r);
         final problem = r.start();
         if (problem != null) error(problem.key, problem.args);
       case 'act':

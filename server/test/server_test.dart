@@ -409,6 +409,44 @@ void main() {
     await back.close();
   });
 
+  test('Quick Match fills with people, then bots after the wait', () async {
+    lobby.close();
+    await server.close(force: true);
+    lobby = Lobby(
+      config: const ServerConfig(
+        pace: 0.0005,
+        idleMs: 40,
+        introMs: 0,
+        quickWait: Duration(milliseconds: 300),
+      ),
+    );
+    server = await io.serve(
+      createHandler(lobby),
+      InternetAddress.loopbackIPv4,
+      0,
+    );
+    final a = await Client.connect(server.port);
+    final b = await Client.connect(server.port);
+    a.send({'t': 'quick'});
+    final first = await a.next((m) => isType(m, 'room'));
+    expect(first['quickInMs'], isNotNull);
+    b.send({'t': 'quick'});
+    final second = await b.next((m) => isType(m, 'room'));
+    expect(second['id'], first['id'], reason: 'same table');
+    // Nobody else comes: two bots take the empty seats.
+    final match = await a.next((m) => isType(m, 'match'));
+    expect((match['view']['players'] as List).length, quickSize);
+    expect(match['mode'], 'classic');
+    // The next Quick Match gets a new table.
+    final c = await Client.connect(server.port);
+    c.send({'t': 'quick'});
+    final third = await c.next((m) => isType(m, 'room'));
+    expect(third['id'], isNot(first['id']));
+    for (final x in [a, b, c]) {
+      await x.close();
+    }
+  });
+
   test('reactions reach everyone, from a fixed list, rate limited', () async {
     final (cs, _, _) = await room(1);
     final me = (await cs[0].next((m) => isType(m, 'room')))['you'];

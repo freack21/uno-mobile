@@ -16,6 +16,9 @@ Future<void> main(List<String> args) async {
       pace: double.tryParse(env['LC_PACE'] ?? '') ?? 1.0,
       idleMs: int.tryParse(env['LC_IDLE_MS'] ?? '') ?? 25000,
       introMs: int.tryParse(env['LC_INTRO_MS'] ?? '') ?? 8400,
+      quickWait: Duration(
+        milliseconds: int.tryParse(env['LC_QUICK_MS'] ?? '') ?? 20000,
+      ),
     ),
   );
   // Rooms survive restarts and redeploys when a data directory is set.
