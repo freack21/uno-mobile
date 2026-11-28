@@ -13,6 +13,8 @@ import 'package:last_card_core/shed_table.dart';
 import 'package:last_card_core/snapshot.dart';
 import 'package:last_card_core/table.dart';
 
+import 'daily.dart';
+
 /// One open connection; [send] delivers a JSON message.
 abstract class Connection {
   void send(Map<String, Object?> message);
@@ -702,6 +704,7 @@ class Lobby {
   /// Drops rooms nobody has been connected to for a while.
   void sweep() {
     final now = DateTime.now();
+    daily.prune(now);
     rooms.removeWhere((_, r) {
       final stale =
           !r.anyoneOnline && now.difference(r.lastActive) > config.emptyRoomTtl;
@@ -709,6 +712,9 @@ class Lobby {
       return stale;
     });
   }
+
+  /// Daily challenge scores.
+  final daily = DailyBoard();
 
   /// The Quick Match room gathering players, if any.
   Room? quick;
@@ -736,12 +742,20 @@ class Lobby {
       for (final r in rooms.values)
         if (r.quickAt == null) r.toJson(),
     ],
+    'daily': daily.toJson(),
   };
 
   /// Brings back rooms from [snapshot]; returns how many. Members reconnect
   /// with their saved tokens.
   int restore(Map<String, dynamic> snapshot) {
     if (snapshot['version'] != 1) return 0;
+    try {
+      daily
+        ..load((snapshot['daily'] as Map<String, dynamic>?) ?? const {})
+        ..prune(DateTime.now());
+    } catch (_) {
+      // A leaderboard that cannot be read starts empty.
+    }
     var count = 0;
     for (final j in snapshot['rooms'] as List) {
       try {
@@ -814,6 +828,23 @@ class Lobby {
       switch (msg['t']) {
         case 'ping':
           c.send({'t': 'pong'});
+        case 'daily_get':
+          final date = msg['date'] as String? ?? dailyDate(DateTime.now());
+          c.send(daily.view(date, msg['device'] as String?));
+        case 'daily_submit':
+          final date = '${msg['date']}';
+          final device = '${msg['device']}';
+          final score = msg['score'];
+          if (score is! int) return error('Invalid score');
+          final problem = daily.submit(
+            date: date,
+            device: device,
+            name: '${msg['name'] ?? ''}',
+            score: score,
+            now: DateTime.now(),
+          );
+          if (problem != null) return error(problem);
+          c.send(daily.view(date, device));
         case 'create':
           String id;
           do {

@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:last_card_server/daily.dart';
 import 'package:last_card_server/rooms.dart';
 import 'package:last_card_server/server.dart';
 import 'package:shelf/shelf_io.dart' as io;
@@ -445,6 +446,52 @@ void main() {
     for (final x in [a, b, c]) {
       await x.close();
     }
+  });
+
+  test('daily scores: one try per device, best first, kept a week', () async {
+    final now = DateTime.utc(2026, 11, 28, 3);
+    final board = DailyBoard();
+    final today = dailyDate(now);
+    expect(today, '2026-11-28');
+    String? submit(String device, String name, int score, [String? date]) =>
+        board.submit(
+          date: date ?? today,
+          device: device,
+          name: name,
+          score: score,
+          now: now,
+        );
+    expect(submit('device-aaaa', 'Ana', 120), isNull);
+    expect(submit('device-bbbb', 'Budi', 300), isNull);
+    expect(submit('device-aaaa', 'Ana', 999), isNull, reason: 'kept first');
+    expect(submit('device-cccc', 'Cici', 300), isNull);
+    expect(submit('device-dddd', 'Dodo', 10, '2026-11-20'), 'That day is over');
+    expect(submit('device-dddd', '', 10), isNotNull);
+    expect(submit('device-dddd', 'Dodo', -1), 'Invalid score');
+    final view = board.view(today, 'device-aaaa');
+    expect(
+      [for (final e in view['top'] as List) e['name']],
+      ['Budi', 'Cici', 'Ana'],
+    );
+    expect(view['rank'], 3);
+    board.prune(now.add(const Duration(days: 8)));
+    expect(board.days, isEmpty);
+
+    // And over the socket.
+    final c = await Client.connect(port);
+    c.send({
+      't': 'daily_submit',
+      'date': dailyDate(DateTime.now()),
+      'device': 'device-socket',
+      'name': 'Eko',
+      'score': 77,
+    });
+    final got = await c.next((m) => isType(m, 'daily'));
+    expect(got['top'], [
+      {'name': 'Eko', 'score': 77},
+    ]);
+    expect(got['rank'], 1);
+    await c.close();
   });
 
   test('reactions reach everyone, from a fixed list, rate limited', () async {
