@@ -35,8 +35,12 @@ const indonesian = <String, String>{
       'Wild +4 bisa dibalas dengan Wild +4 lain.',
   'A Wild card can be played on anything. You choose the next color.':
       'Kartu Wild bisa dimainkan di atas kartu apa pun. Kamu pilih warna berikutnya.',
+  'A Wild fits anything. Play it and pick the next color.':
+      'Wild cocok dengan apa saja. Mainkan dan pilih warna berikutnya.',
   'A big box is dangerous: stay sharp when it grows.':
       'Kotak yang besar itu berbahaya: tetap waspada saat isinya bertambah.',
+  'A draw card hit you. Tap the deck to take the cards.':
+      'Kamu kena kartu plus. Tap tumpukan untuk mengambil kartunya.',
   'A game against bots will restart.': 'Game melawan bot akan dimulai ulang.',
   'A long stack is a big swing — be ready when the player before you is low on cards.':
       'Tumpukan panjang bisa membalikkan keadaan — bersiaplah saat pemain sebelum kamu tinggal sedikit kartu.',
@@ -328,6 +332,7 @@ const indonesian = <String, String>{
   'Mute sounds': 'Matikan suara',
   'NO MATCH': 'TIDAK COCOK',
   'New actions': 'Aksi baru',
+  'New to Last Card?': 'Baru main Last Card?',
   'New to the game?': 'Baru main game ini?',
   'Next match': 'Pertandingan berikutnya',
   'Next match (host decides)': 'Pertandingan berikutnya (host memilih)',
@@ -356,6 +361,8 @@ const indonesian = <String, String>{
       'Tak ada yang tinggal satu kartu · kamu ambil 2',
   'Normal': 'Normal',
   'Not again…': 'Yah, lagi…',
+  'Nothing matches the top card. Tap the deck to draw one.':
+      'Tidak ada yang cocok dengan kartu teratas. Tap tumpukan untuk ambil satu.',
   'Number': 'Angka',
   'Number cards: face value (a 9 is worth 9).':
       'Kartu angka: sesuai nilainya (9 bernilai 9).',
@@ -417,6 +424,9 @@ const indonesian = <String, String>{
       'Mainkan 0 dan semua kartu di tangan berpindah satu kursi searah permainan.',
   'Play a 7 and choose any player: you swap your whole hand with theirs.':
       'Mainkan 7 dan pilih pemain mana saja: kamu menukar seluruh kartumu dengan kartunya.',
+  'Play a guided game': 'Main dengan panduan',
+  'Play a short guided game: tips show you what to do at every step.':
+      'Main satu permainan singkat dengan panduan: tips menunjukkan apa yang harus dilakukan di setiap langkah.',
   'Play again': 'Main lagi',
   'Play an identical card out of turn': 'Mainkan kartu kembar di luar giliran',
   'Play changes direction': 'Arah main berubah',
@@ -505,6 +515,7 @@ const indonesian = <String, String>{
   'Seven-O is on: 7 swaps hands, 0 passes them along.':
       'Seven-O aktif: 7 menukar kartu, 0 mengopernya berkeliling.',
   'Show final score': 'Lihat skor akhir',
+  'Show me': 'Tunjukkan',
   'Shuffling': 'Mengocok',
   'Single': 'Tunggal',
   'Skip': 'Skip',
@@ -573,6 +584,10 @@ const indonesian = <String, String>{
       'Langkah itu tidak bisa dilakukan sekarang',
   'The backs of opponents\' cards (and the deck) show their other side, so you can see what is coming.':
       'Bagian belakang kartu lawan (dan dek) menunjukkan sisi lainnya, jadi kamu bisa lihat apa yang akan datang.',
+  'The bot is playing. Watch how the top card changes.':
+      'Bot sedang main. Perhatikan kartu teratas berubah.',
+  'The dealer shuffles and deals 5 cards each. Tap to skip.':
+      'Pembagi mengocok dan membagikan 5 kartu ke tiap pemain. Tap untuk lewati.',
   'The deck': 'Dek',
   'The first player to reach the target score (500 by default) wins the match.':
       'Pemain pertama yang mencapai skor target (bawaan 500) memenangkan pertandingan.',
@@ -618,6 +633,8 @@ const indonesian = <String, String>{
       'Dua Reverse saling membatalkan: arah permainan tetap.',
   'Two Skips skip the next two players.':
       'Dua Skip melewati dua pemain berikutnya.',
+  'Two cards left! Tap LAST CARD before you play, or you can be caught.':
+      'Tinggal dua kartu! Tekan LAST CARD sebelum main, atau kamu bisa ketahuan.',
   'Two sides': 'Dua sisi',
   'Two teams of two. Partners sit opposite.':
       'Dua tim berdua. Rekan duduk berhadapan.',
@@ -712,6 +729,8 @@ const indonesian = <String, String>{
   'You draw': 'Kamu ambil',
   'You draw {n} from the stock': 'Kamu ambil {n} dari stok',
   'You drew 1 card': 'Kamu ambil 1 kartu',
+  'You drew a card. Play it if it fits, or tap Keep.':
+      'Kamu ambil satu kartu. Mainkan kalau cocok, atau tekan Simpan.',
   'You drew {n} cards': 'Kamu ambil {n} kartu',
   'You dug 1 card for {color}': 'Kamu ambil 1 kartu untuk mencari {color}',
   'You dug {n} cards for {color}': 'Kamu ambil {n} kartu untuk mencari {color}',
@@ -747,6 +766,7 @@ const indonesian = <String, String>{
   'You\'re out': 'Kamu keluar',
   'You: "Last card!"': 'Kamu: "Last card!"',
   'Your card': 'Kartumu',
+  'Your last card! Play it to win.': 'Kartu terakhirmu! Mainkan untuk menang.',
   'Your match is running': 'Pertandinganmu sedang berjalan',
   'Your nickname': 'Nama panggilanmu',
   'Your partner is marked with a team badge.':
@@ -760,6 +780,8 @@ const indonesian = <String, String>{
   'Your track': 'Lintasanmu',
   'Your turn': 'Giliranmu',
   'Your turn — tap the deck to draw': 'Giliranmu — ketuk dek untuk ambil',
+  'Your turn: play a card with the same color or number as the top card. Glowing cards can be played.':
+      'Giliranmu: mainkan kartu dengan warna atau angka yang sama dengan kartu teratas. Kartu yang menyala bisa dimainkan.',
   'need {n}': 'butuh {n}',
   'offline': 'offline',
   'stock {n}': 'stok {n}',
@@ -781,6 +803,8 @@ const indonesian = <String, String>{
   '{a} drew {n} cards': '{a} ambil {n} kartu',
   '{a} dug 1 card for {color}': '{a} ambil 1 kartu untuk mencari {color}',
   '{a} dug {n} cards for {color}': '{a} ambil {n} kartu untuk mencari {color}',
+  '{a} has one card and forgot to call LAST CARD! Tap LAST CARD now: they draw 2.':
+      '{a} tinggal satu kartu dan lupa bilang LAST CARD! Tekan LAST CARD sekarang: dia ambil 2.',
   '{a} held the most cards and is out!': 'Kartu {a} paling banyak, dia keluar!',
   '{a} hit you': '{a} menyerangmu',
   '{a} hit {b}': '{a} menyerang {b}',

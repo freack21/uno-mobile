@@ -17,6 +17,7 @@ import 'sfx.dart';
 import 'stats_screen.dart';
 import 'theme.dart';
 import 'theme_switch.dart';
+import 'tutorial.dart';
 
 class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key, this.joinCode});
@@ -43,6 +44,11 @@ class _HomeScreenState extends State<HomeScreen> {
           context,
           MaterialPageRoute(builder: (_) => OnlineHomeScreen(joinCode: code)),
         );
+      });
+    } else if (!tutorialSeen) {
+      // First visit: offer a guided game.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) offerTutorial(context);
       });
     }
   }

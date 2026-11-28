@@ -27,6 +27,7 @@ class GameScreen extends StatefulWidget {
     this.difficulty = Difficulty.normal,
     this.controller,
     this.onRematch,
+    this.coach,
   });
 
   final GameMode mode;
@@ -39,6 +40,9 @@ class GameScreen extends StatefulWidget {
 
   /// Online, for the host: start the same mode again.
   final VoidCallback? onRematch;
+
+  /// Tutorial: a tip for what is happening now (null shows none).
+  final String? Function(GameController c)? coach;
 
   @override
   State<GameScreen> createState() => _GameScreenState();
@@ -540,6 +544,7 @@ class _GameScreenState extends State<GameScreen> {
                           onGuide: _openGuide,
                         ),
                         _Opponents(controller: c, seatKeys: _seatKeys),
+                        if (widget.coach?.call(c) case final tip?) _Coach(tip),
                         Expanded(
                           child: _Table(
                             controller: c,
@@ -2589,4 +2594,39 @@ class _CardLook {
   final Color? glow;
   final String? badge;
   final Color badgeColor;
+}
+
+/// A tutorial tip under the opponents.
+class _Coach extends StatelessWidget {
+  const _Coach(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return AnimatedSwitcher(
+      duration: const Duration(milliseconds: 220),
+      child: Container(
+        key: ValueKey(text),
+        margin: const EdgeInsets.fromLTRB(14, 6, 14, 0),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
+        decoration: BoxDecoration(
+          color: const Color(0xFF2475D6),
+          borderRadius: BorderRadius.circular(16),
+        ),
+        child: Row(
+          children: [
+            const Icon(Icons.lightbulb_rounded, color: Colors.white, size: 20),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                style: font(14, weight: 600, color: Colors.white, height: 1.3),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

@@ -3,6 +3,8 @@ import 'package:material_ui/material_ui.dart';
 import 'package:last_card_core/modes.dart';
 import 'package:last_card_core/rules.dart';
 import 'package:uno_mobile/main.dart';
+import 'package:uno_mobile/online/browser.dart';
+import 'package:uno_mobile/ui/tutorial.dart';
 import 'package:uno_mobile/ui/game_controller.dart';
 import 'package:uno_mobile/ui/exact_score_screen.dart';
 import 'package:uno_mobile/ui/game_screen.dart';
@@ -36,6 +38,9 @@ Future<void> phone(WidgetTester tester) async {
 }
 
 void main() {
+  // The first-visit tutorial offer would cover the home screen.
+  setUpAll(() => writeStored('lastcard.tutorial', '1'));
+
   testWidgets('home lists every mode', (tester) async {
     // A tall viewport builds every tile of the lazy list at once.
     tester.view.physicalSize = const Size(390, 3200);
@@ -308,5 +313,28 @@ void main() {
     await phone(tester);
     await tester.pumpWidget(wrap(const GuideScreen()));
     expect(find.text('Action cards'), findsOneWidget);
+  });
+
+  testWidgets('the guided game shows a tip for the table', (tester) async {
+    final c = GameController(
+      mode: gameModes.first,
+      rules: const RuleSet(handSize: 5),
+      playerCount: 2,
+      difficulty: Difficulty.easy,
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: buildTheme(),
+        home: GameScreen(mode: gameModes.first, controller: c, coach: coachFor),
+      ),
+    );
+    await tester.pump();
+    expect(find.textContaining('shuffles and deals 5 cards'), findsOneWidget);
+    c.skipIntro(user: true);
+    await tester.pump();
+    expect(find.byIcon(Icons.lightbulb_rounded), findsWidgets);
+    expect(coachFor(c), isNotNull);
+    c.dispose();
+    await tester.pumpWidget(const SizedBox());
   });
 }

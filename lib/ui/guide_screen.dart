@@ -6,6 +6,7 @@ import 'package:last_card_core/modes.dart';
 
 import 'playing_card.dart';
 import 'theme.dart';
+import 'tutorial.dart';
 
 IconData modeIcon(String id) => switch (id) {
   'classic' => Icons.style_rounded,
@@ -61,8 +62,15 @@ class GuideScreen extends StatelessWidget {
             GuideSections(sections: m.guide),
             const SizedBox(height: 8),
             const _BasicsLink(),
-          ] else
+          ] else ...[
+            FilledButton.icon(
+              onPressed: () => playTutorial(context),
+              icon: const Icon(Icons.lightbulb_rounded),
+              label: Text(t('Play a guided game')),
+            ),
+            const SizedBox(height: 20),
             const GuideSections(sections: basicsGuide),
+          ],
         ],
       ),
     );
